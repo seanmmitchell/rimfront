@@ -1,8 +1,8 @@
 [CmdletBinding()]
-param()
+param([string]$ReferenceDll)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$referenceDll = Join-Path $projectRoot 'mod/1.7/Assemblies/RimFront.dll'
+$referenceDll = if ($ReferenceDll) { $ReferenceDll } else { Join-Path $projectRoot 'mod/1.7/Assemblies/RimFront.dll' }
 if (-not (Test-Path -LiteralPath $referenceDll)) { throw 'Package contract tests require an existing RimFront build.' }
 $assemblyVersion = [Reflection.AssemblyName]::GetAssemblyName($referenceDll).Version
 $release = "$($assemblyVersion.Major).$($assemblyVersion.Minor).$($assemblyVersion.Build)"

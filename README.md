@@ -95,11 +95,15 @@ Pass `-Dotnet 'path/to/dotnet.exe'` for a local SDK. `RIMWORLD_17_DIR` and `HARM
 
 Standalone tests exercise collision, input/aim policy, geometry, appearance, animation, effects and lifecycle helpers. They do not start a GPU renderer or game session. Recreate catalogs with `scripts/model-catalog.ps1`, using the same game/Harmony paths; this optional tool also needs Python, Pillow and NumPy.
 
-The [firing-loop suite](https://github.com/seanmmitchell/rimfront/blob/main/tests/FiringLoopTests/README.md) drives the production controller across frames, ticks, attacks and reload callbacks with a deterministic engine boundary. It checks held fire, last-round reloads, ammo exhaustion/resupply, input interruptions and continued control. `test.ps1` also deliberately restores six firing regressions in isolated builds and requires the relevant scenarios to fail. Those results are reported as named scenarios, separately from geometry assertions. The simulated boundary does not replace live game/CE testing.
+The [firing-loop suite](https://github.com/seanmmitchell/rimfront/blob/main/tests/FiringLoopTests/README.md) drives the production controller across frames, ticks, attacks and reload callbacks with a deterministic engine boundary. It checks held fire, last-round reloads, ammo exhaustion/resupply, input interruptions and continued control. `test.ps1` also deliberately restores seven firing regressions in isolated builds and requires the relevant scenarios to fail. Those results are reported as named scenarios, separately from geometry assertions. The simulated boundary does not replace live game/CE testing.
 
 For release preparation, use `./scripts/verify-release.ps1` with the same `-Dotnet`, `-RimWorld17Dir` and `-Harmony17Dir` arguments. It builds both versions, runs all suites including firing-loop mutation checks, and only then packages. Calling `package.ps1` alone only creates archives; it does not verify behavior.
 
 See [architecture](docs/architecture.md) for implementation boundaries, [performance](docs/performance.md) for budgets and live measurement, and [smoke tests](docs/smoke-tests.md) for release checks. Multiplayer, concurrent controllers, universal visual-mod compatibility and measured FPS improvements are not claimed.
+
+## Contributing and CI
+
+Open a pull request into main. The required CI gate builds 1.6 and runs the portable tests on PRs and main pushes; it does not certify 1.7 or live CE gameplay. Run the same gate with `./scripts/test-portable.ps1`. Use the PR template to report the problem, resulting behavior, validation evidence, and remaining risks. See [CI and release boundaries](https://github.com/seanmmitchell/rimfront/blob/main/docs/ci.md) for coverage and branch protection.
 
 ## Provenance
 

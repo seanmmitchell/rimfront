@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Verse;
 using Verse.AI;
 
@@ -11,8 +12,10 @@ namespace RimFront
     {
         readonly InputTracker inputs = new InputTracker();
         readonly Gate gate = new Gate();
+        const int MaximumJobTransitions = 12;
+        readonly Queue<string> jobTransitions = new Queue<string>(MaximumJobTransitions);
         static int nextSession;
-        bool active, observedNative;
+        bool active, observedNative, unexpectedReported;
         int session, lastShot;
         Job lastJob;
         Type lastStance;
@@ -21,6 +24,12 @@ namespace RimFront
         internal static bool Enabled => RimFrontMod.Settings?.traceFiring ?? false;
 
         internal void Reset()
+        {
+            ResetTrace();
+            jobTransitions.Clear(); unexpectedReported = false; session = 0;
+        }
+
+        void ResetTrace()
         {
             active = observedNative = false;
             inputs.Reset(); gate.Reset();
@@ -31,15 +40,73 @@ namespace RimFront
         {
             if (!Enabled || pawn == null)
             {
-                if (active) Reset();
+                if (active) ResetTrace();
                 return false;
             }
             if (!active)
             {
-                active = true; session = ++nextSession;
+                active = true; EnsureSession();
                 Emit(pawn, "trace-enabled", "input baseline follows; press 0 means no observed mouse-down yet");
             }
             return true;
+        }
+
+        void EnsureSession() { if (session == 0) session = ++nextSession; }
+
+        static string JobLabel(Job job)
+        {
+            if (job == null) return "none";
+            string name = job.def?.defName ?? "unknown";
+            if (name.Length > 100) name = name.Substring(0, 100);
+            // Both identities matter: the native job pool may reuse one reference
+            // with a fresh loadID for a later AttackStatic order.
+            return name + "#" + RuntimeHelpers.GetHashCode(job).ToString("x") + "/" + job.loadID + " forced=" + job.playerForced;
+        }
+
+        internal void RecordJobStart(Pawn pawn, Job next, Job owned, bool resumeCurrent)
+        {
+            try
+            {
+                if (pawn == null) return;
+                EnsureSession();
+                string transition = "tick=" + (Find.TickManager?.TicksGame ?? -1)
+                    + " from={" + JobLabel(pawn.CurJob) + "} to={" + JobLabel(next)
+                    + "} owned={" + JobLabel(owned) + "} nextIsOwned=" + (next != null && next == owned)
+                    + " resumeCurrent=" + resumeCurrent;
+                if (jobTransitions.Count >= MaximumJobTransitions) jobTransitions.Dequeue();
+                jobTransitions.Enqueue(transition);
+            }
+            catch { }
+        }
+
+        internal void ReportUnexpectedJob(Pawn pawn, Job owned, bool pendingReload)
+        {
+            try
+            {
+                if (pawn == null || unexpectedReported) return;
+                EnsureSession();
+                string reload = "unavailable", weaponState = "unavailable";
+                try { reload = CombatAdapter.IsReloading(pawn).ToString(); } catch { }
+                try
+                {
+                    WeaponState value = CombatAdapter.Describe(pawn);
+                    weaponState = "mode=" + value.fireMode + " ammo=" + value.ammo + "/" + value.capacity + " status=" + value.status;
+                }
+                catch { }
+                string message = "[RimFront:Fire] utc=" + DateTime.UtcNow.ToString("O")
+                    + " tick=" + (Find.TickManager?.TicksGame ?? -1) + " session=" + session
+                    + " event=unexpected-job pawn=" + pawn.thingIDNumber
+                    + " weapon=" + (pawn.equipment?.Primary?.def?.defName ?? "Unarmed") + " " + weaponState
+                    + " current={" + JobLabel(pawn.CurJob) + "} owned={" + JobLabel(owned)
+                    + "} currentIsOwned=" + (owned != null && pawn.CurJob == owned)
+                    + " stance=" + (pawn.stances?.curStance?.GetType().Name ?? "none")
+                    + " reloading=" + reload + " pendingReload=" + pendingReload
+                    + " recentJobStarts=[" + string.Join(" | ", jobTransitions.ToArray()) + "]";
+                // One report per control session, outside the optional trace rate gate.
+                unexpectedReported = true;
+                Log.Warning(message);
+            }
+            catch { }
         }
 
         internal void Input(Pawn pawn, bool physical, bool raw, bool accepted, bool pending, bool gated,

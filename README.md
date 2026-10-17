@@ -1,4 +1,6 @@
-# RimFront 0.6.2
+# RimFront 0.6.3 test build
+
+The current source includes a manual-reload fix for deferred native attack orders, 35 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 

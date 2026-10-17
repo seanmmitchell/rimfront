@@ -16,7 +16,7 @@ Run from the repository root with a .NET 10 SDK:
 ./scripts/test-firing-loop.ps1 -VerifyMutations
 ```
 
-The mutation gate compiles six temporary variants of the production controller, independently restoring:
+The mutation gate compiles seven temporary variants of the production controller, independently restoring:
 
 - The stale-input physical-release latch (`stale-auto-recovery` must fail).
 - Reload resumption of the old owned attack (`reload-resume-ownership` must fail).
@@ -24,10 +24,13 @@ The mutation gate compiles six temporary variants of the production controller, 
 - A fresh-press requirement for every Auto cycle (`held-auto-next-burst` must fail).
 - Failure to reset a cancelled native burst (`exit-mid-burst` must fail even after the attack job ends).
 - Retaining a queued pre-shot click through movement during reload (`movement-during-reload-cancels-click` must fail).
+- Leaving an accepted attack in the native queue after dropping ownership (`deferred-attack-manual-reload` must fail).
 
 All unmodified scenarios must pass. Each altered controller must **compile** and fail its designated behavior scenario. Compile failures, process crashes, malformed results, missing scenarios, and failures in unrelated scenarios do not count as catching a regression. Each build has isolated output directories; the shipped source and game installation are never changed. JSON evidence and build logs remain under `.build/firing-loop/<run>/`.
 
 The movement-during-reload scenario was first run against the unmodified 0.6.2 controller: it was the sole failing case out of 27, observing an unwanted shot after movement stopped. The production fix clears queued clicks before returning for a reload/busy stance. The preserved short-click scenario separately requires that a pre-shot reload still fires the accepted shot when no cancelling action occurs.
+
+The 0.6.3 investigation corrected two fixture assumptions: ordered jobs can be accepted into a queue without starting, and interrupted cleanup can immediately start queued work. All 27 original scenarios still passed against the previous controller, while six new deferred-order scenarios failed, including a manual-R reload followed by the same unowned `AttackStatic` exit seen in the game log. The suite now also tests recycled native job identities and preservation of foreign orders across reload replacement, for 35 named scenarios. A dedicated reuse scenario changes the fake job's allocation ID to model native pooling. These additions address the observed coverage gap; they do not prove which native queue condition occurred in the user's session.
 
 ## Limits and release use
 

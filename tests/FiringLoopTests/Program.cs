@@ -35,7 +35,15 @@ internal static class Program
             ("multiple-ticks-per-frame", MultipleTicks),
             ("fixed-mode-held-fire", FixedHeld),
             ("exit-mid-burst", ExitMidBurst),
-            ("external-order-releases-control", ExternalOrder)
+            ("external-order-releases-control", ExternalOrder),
+            ("deferred-attack-manual-reload", DeferredReload),
+            ("deferred-single-click-retries-once", DeferredClick),
+            ("deferred-attack-exit-cancels", DeferredExit),
+            ("deferred-attack-movement-cancels", DeferredMovement),
+            ("deferred-attack-stale-cancels", DeferredStale),
+            ("deferred-cancellation-retains-foreign-queue", DeferredForeign),
+            ("pooled-request-does-not-own-recycled-job", RecycledRequest),
+            ("manual-reload-defers-foreign-queue", ReloadDefersForeign)
         };
         int failed = 0;
         foreach (var scenario in scenarios)
@@ -397,5 +405,127 @@ internal static class Program
         world.Frame(held: true); world.Tick();
         Require(!world.Active && world.Pawn.CurJob?.def?.defName == "HaulToCell" && world.Errors.Count == 0,
             "An incompatible external order was overwritten instead of releasing control.");
+    }
+
+    static void DeferAttack(FiringWorld world, bool shortClick = false)
+    {
+        world.DeferNextOrderedJob = true;
+        world.HoldQueuedJobs = true;
+        world.Frame(held: true);
+        if (shortClick) world.Frame();
+        world.Tick();
+        Require(world.AttackOrders == 0 && world.Shots == 0,
+            "Deferred native acceptance unexpectedly started the attack synchronously.");
+        Healthy(world);
+    }
+
+    static void DeferredReload()
+    {
+        using var world = Loaded();
+        world.Ammo = 2; world.MagazineSize = 6; world.Reserve = 12;
+        DeferAttack(world);
+        world.Frame(reload: true); world.Tick();
+        Require(world.Reloads == 1, "Manual R did not start reload after deferred acceptance.");
+        world.HoldQueuedJobs = false;
+        Run(world, 35, held: false);
+        Require(world.Shots == 0 && world.PendingResumptions == 0,
+            "Cancelled deferred attack survived manual reload or fired without fresh input.");
+    }
+
+    static void DeferredClick()
+    {
+        using var world = Loaded("Single");
+        DeferAttack(world, shortClick: true);
+        world.HoldQueuedJobs = false;
+        Run(world, 45, held: false);
+        Require(world.Shots == 1 && world.AttackOrders == 1 && world.PendingResumptions == 0,
+            "Deferred single click was lost, duplicated, or replayed as an unowned job.");
+    }
+
+    static void DeferredExit()
+    {
+        using var world = Loaded();
+        DeferAttack(world);
+        world.Frame(release: true);
+        world.HoldQueuedJobs = false; world.Tick(30);
+        Require(!world.Active && world.Shots == 0 && world.AttackOrders == 0 && world.PendingResumptions == 0,
+            "Leaving RimFront allowed a deferred owned attack to start or fire afterward.");
+    }
+
+    static void DeferredMovement()
+    {
+        using var world = Loaded("Single");
+        DeferAttack(world, shortClick: true);
+        world.Frame(forward: 1); world.Tick();
+        world.HoldQueuedJobs = false;
+        Run(world, 5, held: false, forward: 1);
+        Run(world, 25, held: false);
+        Require(world.Shots == 0 && world.PendingResumptions == 0,
+            "Movement failed to cancel the deferred accepted click.");
+    }
+
+    static void DeferredStale()
+    {
+        using var world = Loaded("Single");
+        DeferAttack(world, shortClick: true);
+        world.ExpireInput(); world.Tick();
+        world.HoldQueuedJobs = false;
+        world.Frame(); Run(world, 30, held: false);
+        Require(world.Shots == 0 && world.PendingResumptions == 0,
+            "Stale input left a deferred click authorized to fire later.");
+    }
+
+    static void DeferredForeign()
+    {
+        using var world = Loaded();
+        var foreign = new Verse.AI.Job { def = new Verse.AI.JobDef("HaulToCell"), playerForced = true };
+        world.Pawn.jobs.jobQueue.EnqueueLast(foreign);
+        DeferAttack(world);
+        Require(world.Pawn.jobs.jobQueue.Contains(foreign), "Removing the deferred attack discarded an unrelated queued order.");
+        world.Frame(release: true);
+        Require(world.Pawn.jobs.jobQueue.Contains(foreign) && world.PendingResumptions == 1,
+            "Release failed to remove exactly its deferred attack while preserving the foreign order.");
+        world.HoldQueuedJobs = false; world.Tick();
+        Require(ReferenceEquals(world.Pawn.CurJob, foreign), "The preserved foreign job could not start after release.");
+    }
+
+    static void RecycledRequest()
+    {
+        foreach (bool queued in new[] { false, true })
+        {
+            using var world = Loaded("Single");
+            world.RecycleNextOrderedJob = true; world.QueueRecycledJob = queued;
+            world.HoldQueuedJobs = queued;
+            world.Frame(held: true); world.Frame(); world.Tick();
+            var foreign = world.RecycledJob;
+            Require(foreign != null && world.Shots == 0, "Fixture did not recycle the accepted request synchronously.");
+            if (queued)
+            {
+                Require(world.Pawn.jobs.jobQueue.Contains(foreign), "Queued removal deleted a different generation of the pooled Job object.");
+                world.Frame(release: true);
+                Require(world.Pawn.jobs.jobQueue.Contains(foreign), "Release discarded the recycled foreign queued job.");
+                world.HoldQueuedJobs = false; world.Tick();
+            }
+            else world.Tick();
+            Require(!world.Active && ReferenceEquals(world.Pawn.CurJob, foreign) && world.ResetCount == 0,
+                "The controller claimed a recycled foreign Job as its owned attack or cancelled the foreign order.");
+        }
+    }
+
+    static void ReloadDefersForeign()
+    {
+        using var world = Loaded("Single");
+        world.Ammo = 2; world.MagazineSize = 6; world.Reserve = 12; world.WarmupTicks = 15;
+        world.Frame(held: true); world.Tick();
+        var foreign = new Verse.AI.Job { def = new Verse.AI.JobDef("HaulToCell"), playerForced = true };
+        world.Pawn.jobs.jobQueue.EnqueueLast(foreign);
+        world.Frame(reload: true); world.Tick();
+        Require(world.Pawn.CurJob?.def.defName == "ReloadWeapon" && world.Reloads == 1,
+            "Manual reload failed to replace the owned warmup.");
+        Require(!world.Events.Contains("job-start:HaulToCell") && world.Pawn.jobs.jobQueue.Contains(foreign),
+            "Ending the owned attack started the foreign queued job inside the manual reload replacement.");
+        for (int i = 0; i < 20 && world.Active; i++) { world.Frame(); world.Tick(); }
+        Require(!world.Active && ReferenceEquals(world.Pawn.CurJob, foreign) && world.Ammo == 6 && world.Shots == 0,
+            "The preserved foreign order failed to run normally after reload or a cancelled click fired.");
     }
 }

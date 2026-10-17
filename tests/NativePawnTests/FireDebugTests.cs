@@ -100,5 +100,79 @@ internal static partial class Program
             Check(!(bool)traceType.GetField("active", Flags).GetValue(trace), "enabled tracing without a pawn remains inactive and cannot affect game control");
         }
         finally { settingsField.SetValue(null, savedSettings); }
+        TestAutomaticJobHistory(assembly);
+    }
+
+    static void TestAutomaticJobHistory(Assembly assembly)
+    {
+        Type traceType = assembly.GetType("RimFront.NativeFiringTrace", true);
+        MethodInfo record = traceType.GetMethod("RecordJobStart", Flags), reset = traceType.GetMethod("Reset", Flags);
+        Type pawnType = record.GetParameters()[0].ParameterType, jobType = record.GetParameters()[1].ParameterType;
+        Assembly native = pawnType.Assembly;
+        Type currentType = native.GetType("Verse.Current", true);
+        PropertyInfo currentGame = currentType.GetProperty("Game", Flags);
+        object oldGame = currentGame.GetValue(null);
+        FieldInfo settingsField = assembly.GetType("RimFront.RimFrontMod", true).GetField("Settings", Flags);
+        object oldSettings = settingsField.GetValue(null);
+        object settings = RuntimeHelpers.GetUninitializedObject(settingsField.FieldType);
+        settingsField.FieldType.GetField("traceFiring", Flags).SetValue(settings, false);
+        object trace = Activator.CreateInstance(traceType, true);
+        object pawn = RuntimeHelpers.GetUninitializedObject(pawnType);
+        object tracker = RuntimeHelpers.GetUninitializedObject(native.GetType("Verse.AI.Pawn_JobTracker", true));
+        Set(pawn, "jobs", tracker);
+        object NewJob(string name, bool forced)
+        {
+            object job = RuntimeHelpers.GetUninitializedObject(jobType);
+            FieldInfo defField = jobType.GetField("def", Flags);
+            object def = RuntimeHelpers.GetUninitializedObject(defField.FieldType);
+            Set(def, "defName", name); defField.SetValue(job, def); Set(job, "playerForced", forced);
+            return job;
+        }
+        string[] History() => System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Cast<string>(
+            (IEnumerable)traceType.GetField("jobTransitions", Flags).GetValue(trace)));
+        try
+        {
+            // No simulation, renderer, or native log sink is started. Find.TickManager
+            // only needs Current.Game to exist; its null tick manager yields tick=-1.
+            currentGame.SetValue(null, RuntimeHelpers.GetUninitializedObject(currentGame.PropertyType));
+            settingsField.SetValue(null, settings);
+            object owned = NewJob("AttackStatic", true);
+            Set(tracker, "curJob", owned);
+            for (int i = 0; i < 20; i++)
+                record.Invoke(trace, new[] { pawn, NewJob("Transition" + i, i % 2 == 0), owned, (object)(i % 2 != 0) });
+            string[] history = History();
+            Check(history.Length == 12 && history[0].Contains("to={Transition8#") && history[11].Contains("to={Transition19#"),
+                "automatic history retains exactly the latest twelve actual starts while detailed trace is disabled");
+            Check(history[0].Contains("forced=True") && history[0].Contains("resumeCurrent=False")
+                && history[11].Contains("resumeCurrent=True") && history[11].Contains("nextIsOwned=False"),
+                "transition record preserves forced, resume, and owned-reference facts");
+            record.Invoke(trace, new[] { pawn, owned, owned, (object)false });
+            Check(History()[11].Contains("nextIsOwned=True"), "restarting the same owned reference is distinguished from a new attack instance");
+            MethodInfo label = traceType.GetMethod("JobLabel", Flags);
+            string ownedLabel = (string)label.Invoke(null, new[] { owned });
+            Check(ownedLabel == (string)label.Invoke(null, new[] { owned })
+                && ownedLabel != (string)label.Invoke(null, new[] { NewJob("AttackStatic", true) }),
+                "same-definition jobs retain separate diagnostic reference identities");
+            Set(owned, "loadID", 123);
+            Check(ownedLabel != (string)label.Invoke(null, new[] { owned }),
+                "a reused pooled job reference is distinguished by its fresh native load ID");
+            string longLabel = (string)label.Invoke(null, new[] { NewJob(new string('x', 10000), false) });
+            Check(longLabel.Length < 140, "mod job names cannot inflate the bounded transition ring without limit");
+            traceType.GetField("active", Flags).SetValue(trace, true);
+            traceType.GetMethod("Event", Flags).Invoke(trace, new[] { pawn, (object)"disabled", "does-not-log" });
+            Check(History().Length == 12 && !(bool)traceType.GetField("active", Flags).GetValue(trace),
+                "turning off optional tracing preserves always-on transition history");
+            record.Invoke(trace, new object[] { null, owned, owned, false });
+            Check(History().Length == 12, "missing pawn cannot append a bogus job transition");
+            traceType.GetField("unexpectedReported", Flags).SetValue(trace, true);
+            reset.Invoke(trace, null);
+            Check(History().Length == 0 && !(bool)traceType.GetField("unexpectedReported", Flags).GetValue(trace)
+                && (int)traceType.GetField("session", Flags).GetValue(trace) == 0,
+                "control-session reset removes prior jobs and re-arms the single unexpected-job report");
+            record.Invoke(trace, new[] { pawn, owned, owned, (object)false });
+            Check(History().Length == 1 && (int)traceType.GetField("session", Flags).GetValue(trace) > 0,
+                "a new disabled-trace session starts with only its own history");
+        }
+        finally { currentGame.SetValue(null, oldGame); settingsField.SetValue(null, oldSettings); }
     }
 }

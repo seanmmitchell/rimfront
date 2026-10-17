@@ -1,10 +1,16 @@
-# Compatibility and verification — 0.6.2
+# Compatibility and verification — 0.6.3 test build
 
-Updated 2026-10-17. **Both 0.6.2 builds and all 95,963 automated checks passed.** No live 0.6.2 gameplay or GPU validation is recorded here. Compilation, metadata inspection and standalone helper tests do not certify native camera behavior, patch coexistence, combat outcomes or performance.
+Updated 2026-10-17. Both 0.6.3 targets compile, 35 production-controller scenarios pass against the simulated engine boundary, and all seven deliberately broken controller variants compile and fail their designated scenario. Live confirmation of the manual-R reload fix is pending. Compilation, metadata inspection and standalone tests do not certify native camera behavior, patch coexistence, combat outcomes or performance.
+
+The latest installed 0.6.2 development session reported `Control released for native job: AttackStatic`; the user identified pressing R as the trigger. There was no reload exception or detailed firing trace. Inspection found that native `TryTakeOrderedJob` can accept a request into its queue without making it current, while RimFront dropped ownership without removing that request. A later queued start could therefore appear external and release control. The updated fixture reproduces that exit, but the log does not establish which native queue condition occurred in the user's session.
+
+The 0.6.3 fix removes only the exact deferred request, verifies its native allocation ID before touching pooled objects, retries eligible unfired clicks with fresh aim, and suppresses immediate native job selection during manual reload replacement. Foreign queued orders remain intact. Unexpected-job exits now include a bounded recent-job history even when detailed tracing is disabled. Baseline build/scenario evidence: `work/runtime-test/build-0.6.3.log`, `queued-acceptance-red.jsonl`, and `firing-loop-0.6.3-baseline.log`.
+
+All automated suites passed after updating an older reflection test to supply the new cleanup argument. The first run stopped at that test-call mismatch; the affected native suite and remaining geometry/input/package checks then passed against the unchanged DLLs. Evidence: `tests-0.6.3.log`, `tests-0.6.3-remaining.log`, and `.build/firing-loop/36dd68c3a40443aa926a3947c6e54894/results.json`. RimWorld 1.6 retains NU1900 because NuGet audit metadata was unavailable; 1.7 compiled without warnings.
 
 ## Target matrix
 
-| Target | Build boundary | 0.6.2 live status |
+| Target | Build boundary | 0.6.3 live status |
 | --- | --- | --- |
 | RimWorld 1.6 | Pinned `Krafs.Rimworld.Ref` 1.6.4871, `Lib.Harmony` 2.4.2, .NET Framework 4.7.2 | Not validated |
 | RimWorld 1.7 | Installed game/Harmony, UnityStubs/Waylith references, .NET 10 | Not validated |

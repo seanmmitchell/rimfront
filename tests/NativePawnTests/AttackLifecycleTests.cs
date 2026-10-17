@@ -118,7 +118,7 @@ internal static partial class Program
             cleanup.Invoke(game, new[] { tracker, succeeded });
             Check(!resetObserved && aimField.GetValue(null) == null && gameType.GetField("ownedJob", Flags).GetValue(game) == null,
                 "normal completed burst releases job/aim ownership without erasing native repeat-shot warmup state");
-            gameType.GetMethod("StopOwnedJob", Flags).Invoke(game, new object[] { "test next attack" });
+            gameType.GetMethod("StopOwnedJob", Flags).Invoke(game, new object[] { "test next attack", true });
             Check(!resetObserved, "preparing the next held-fire attack cannot reset the previously completed unowned verb");
             FieldInfo repeatState = observer.GetField("Repeating");
             repeatState.SetValue(verb, true);
@@ -126,7 +126,7 @@ internal static partial class Program
             {
                 Set(game, "ownedJob", job); aimField.SetValue(null, aim);
                 cleanup.Invoke(game, new[] { tracker, succeeded });
-                gameType.GetMethod("StopOwnedJob", Flags).Invoke(game, new object[] { "test next attack" });
+                gameType.GetMethod("StopOwnedJob", Flags).Invoke(game, new object[] { "test next attack", true });
                 Check((bool)repeatState.GetValue(verb) && !resetObserved,
                     "repeated successful native cleanup and next-attack preparation preserve simulated CE repeating state");
             }

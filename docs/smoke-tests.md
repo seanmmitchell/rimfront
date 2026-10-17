@@ -1,8 +1,10 @@
-# Native smoke checklist — 0.6.2
+# Native smoke checklist — 0.6.3 test build
 
-These are required live checks, **not recorded passes**. Close RimWorld, install the extracted 0.6.2 package, restart and use a disposable colony. Run on both 1.6 and 1.7, first with Harmony/Core and then an appropriate CE build. Record exact versions, mod list, hardware, Player.log, expected/actual results and reproduction steps.
+These are required live checks, **not recorded passes**. Close RimWorld, install the extracted 0.6.3 package, restart and use a disposable colony. Run on both 1.6 and 1.7, first with Harmony/Core and then an appropriate CE build. Record exact versions, mod list, hardware, Player.log, expected/actual results and reproduction steps.
 
-Before packaging a new release, run `scripts/verify-release.ps1`. Its firing-loop gate drives the production controller with simulated engine timing/ammo and must reject six deliberately restored regressions. Record the named scenario and mutation results separately from helper assertion totals. The following live checks still cover native CE, Harmony binding and input/rendering behavior that the simulated boundary cannot certify.
+Before packaging a new release, run `scripts/verify-release.ps1`. Its firing-loop gate drives the production controller with simulated engine timing/ammo and must reject seven deliberately restored regressions. Record the named scenario and mutation results separately from helper assertion totals. The following live checks still cover native CE, Harmony binding and input/rendering behavior that the simulated boundary cannot certify.
+
+For the 0.6.3 reload fix, press R during warmup, burst, cooldown, and idle with a partly loaded magazine; repeat with no reserve ammunition and while holding/releasing fire. Include M60/bipod and a non-bipod gun. Verify the reload finishes in first-person view and Auto resumes only while held. Any unexpected job exit now writes one `[RimFront:Fire] event=unexpected-job` report with the recent 12 job starts even when optional tracing is off; retain that report with the log.
 
 ## Package, input and lifecycle
 

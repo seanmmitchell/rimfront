@@ -20,6 +20,9 @@ public sealed class FiringWorld : IDisposable
     public string Mode = "Auto";
     public int WarmupTicks = 3, BurstRounds = 3, BurstIntervalTicks = 2, CooldownTicks = 3, ReloadTicks = 5;
     public bool InvalidAim, StallAttack;
+    public bool DeferNextOrderedJob, HoldQueuedJobs;
+    public bool RecycleNextOrderedJob, QueueRecycledJob;
+    public Job RecycledJob;
     public int Shots, Reloads, ResetCount, ResumedForeignAttacks, AttackOrders;
     public readonly List<int> ShotTicks = new List<int>();
     public readonly List<string> Events = new List<string>();
@@ -108,6 +111,7 @@ public sealed class FiringWorld : IDisposable
 
     void NativeTick()
     {
+        if (Pawn.CurJob == null && !HoldQueuedJobs) Pawn.jobs.StartNextQueued();
         Stance_Busy busy = Pawn.stances.curStance as Stance_Busy;
         if (busy != null && busy.ticksLeft > 0) busy.ticksLeft--;
         // Native VerbTick is independent of JobDriver lifetime. Removing a job alone
@@ -140,9 +144,7 @@ public sealed class FiringWorld : IDisposable
             Pawn.jobs.CleanupCurrentJob(JobCondition.Succeeded);
             if (Pawn.jobs.Pending.Count > 0)
             {
-                Job queued = Pawn.jobs.Pending.Dequeue();
-                if (queued.def == JobDefOf.AttackStatic) ResumedForeignAttacks++;
-                Pawn.jobs.StartJob(queued, JobCondition.None);
+                if (!HoldQueuedJobs) Pawn.jobs.StartNextQueued();
             }
         }
     }
@@ -258,13 +260,56 @@ namespace Verse.AI
     public enum PathEndMode { OnCell }
     public class JobDef { public readonly string defName; public JobDef(string name) { defName = name; } }
     public class Job
-    { public JobDef def; public Verb verbToUse; public LocalTargetInfo targetA; public bool playerForced, forceSleep, EquippedReload; public int expiryInterval; }
+    {
+        static int nextId;
+        public int loadID = ++nextId;
+        public JobDef def; public Verb verbToUse; public LocalTargetInfo targetA;
+        public bool playerForced, forceSleep, EquippedReload, Suspended; public int expiryInterval;
+        public void RecycleAs(JobDef nextDef)
+        {
+            loadID = ++nextId; def = nextDef; verbToUse = null; targetA = default;
+            playerForced = true; forceSleep = EquippedReload = Suspended = false; expiryInterval = 0;
+        }
+    }
     public static class JobMaker { public static Job MakeJob(JobDef def, LocalTargetInfo target) => new Job { def = def, targetA = target }; }
     public class Pawn_JobTracker
     {
-        readonly Pawn pawn; public Job curJob; public readonly Queue<Job> Pending = new Queue<Job>();
+        readonly Pawn pawn; public Job curJob; public readonly JobQueue jobQueue = new JobQueue();
+        public JobQueue Pending => jobQueue;
         public Pawn_JobTracker(Pawn p) { pawn = p; }
-        public void TryTakeOrderedJob(Job job) => StartJob(job, JobCondition.InterruptForced);
+        public bool TryTakeOrderedJob(Job job)
+        {
+            job.playerForced = true;
+            if (pawn.World.RecycleNextOrderedJob)
+            {
+                pawn.World.RecycleNextOrderedJob = false;
+                // A nested native start may reject/pool the request and reuse the same
+                // object before TryTakeOrderedJob returns. Reference identity alone is insufficient.
+                job.RecycleAs(new JobDef("HaulToCell"));
+                pawn.World.RecycledJob = job;
+                if (pawn.World.QueueRecycledJob) jobQueue.EnqueueLast(job);
+                else curJob = job;
+                return true;
+            }
+            if (pawn.World.DeferNextOrderedJob)
+            {
+                pawn.World.DeferNextOrderedJob = false;
+                jobQueue.EnqueueLast(job);
+                return true; // Native acceptance does not imply this job is current.
+            }
+            jobQueue.Clear();
+            jobQueue.EnqueueFirst(job);
+            if (curJob != null) EndCurrentJob(JobCondition.InterruptForced);
+            else StartNextQueued();
+            return true;
+        }
+        public void StartNextQueued()
+        {
+            if (jobQueue.Count == 0 || pawn.World.HoldQueuedJobs) return;
+            Job next = jobQueue.Dequeue();
+            if (next.Suspended && next.def == JobDefOf.AttackStatic) pawn.World.ResumedForeignAttacks++;
+            StartJob(next, JobCondition.None);
+        }
         public void StartJob(Job next, JobCondition condition = JobCondition.None, object jobGiver = null, bool resumeCurJobAfterwards = false)
         {
             RimFrontGame.Active?.BeforeNativeJobStart(this, next, ref resumeCurJobAfterwards);
@@ -272,10 +317,11 @@ namespace Verse.AI
             pawn.stances.curStance = new Stance();
             if (curJob != null)
             {
-                if (resumeCurJobAfterwards) Pending.Enqueue(curJob);
+                if (resumeCurJobAfterwards) { curJob.Suspended = true; Pending.EnqueueFirst(curJob); }
                 CleanupCurrentJob(condition);
             }
             curJob = next;
+            pawn.World.Events.Add("job-start:" + next?.def?.defName);
             if (next?.def == JobDefOf.AttackStatic) pawn.World.BeginAttack(next);
         }
         public void CleanupCurrentJob(JobCondition condition)
@@ -286,11 +332,31 @@ namespace Verse.AI
             // Native soft cancellation ends warmup but retains cooldown.
             if (pawn.stances.curStance is Stance_Warmup) pawn.stances.curStance = new Stance();
         }
-        public void EndCurrentJob(JobCondition condition)
+        public void EndCurrentJob(JobCondition condition, bool startNewJob = true, bool canReturnToPool = true)
         {
+            Job previous = curJob;
             CleanupCurrentJob(condition);
-            curJob = new Job { def = new JobDef("Wait_MaintainPosture"), expiryInterval = 1 };
+            if (!startNewJob) return;
+            if (condition == JobCondition.Succeeded && previous != null && previous.def.defName != "Wait_MaintainPosture" && previous.def != JobDefOf.Goto)
+                curJob = new Job { def = new JobDef("Wait_MaintainPosture"), expiryInterval = 1 };
+            else StartNextQueued();
         }
+        public void EndCurrentOrQueuedJob(Job job, JobCondition condition, bool startNewJob = true, bool canReturnToPool = true)
+        {
+            jobQueue.Remove(job);
+            if (ReferenceEquals(curJob, job)) EndCurrentJob(condition, startNewJob, canReturnToPool);
+        }
+    }
+    public class JobQueue
+    {
+        readonly List<Job> jobs = new List<Job>();
+        public int Count => jobs.Count;
+        public bool Contains(Job job) => jobs.Exists(candidate => ReferenceEquals(candidate, job));
+        public void EnqueueFirst(Job job) => jobs.Insert(0, job);
+        public void EnqueueLast(Job job) => jobs.Add(job);
+        public Job Dequeue() { Job job = jobs[0]; jobs.RemoveAt(0); return job; }
+        public void Clear() => jobs.Clear();
+        public void Remove(Job job) => jobs.RemoveAll(candidate => ReferenceEquals(candidate, job));
     }
 }
 namespace RimFront
@@ -338,6 +404,8 @@ namespace RimFront
     {
         internal static bool Enabled => false;
         internal void Reset() { } internal void Event(Pawn p, string kind, string detail) { } internal void Observe(Pawn p, Job job) { }
+        internal void RecordJobStart(Pawn p, Job next, Job owned, bool resumeCurrent) { }
+        internal void ReportUnexpectedJob(Pawn p, Job owned, bool pendingReload) { }
         internal void Input(Pawn p, bool physical, bool raw, bool accepted, bool pending, bool gated, bool paused, bool reload, bool mode, bool suppress) { }
     }
     internal static class NativeWindowIcon { internal static void Tick() { } }

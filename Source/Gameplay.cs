@@ -112,7 +112,7 @@ namespace RimFront
             }
         }
 
-        void StopOwnedJob(string reason = "replace owned job")
+        void StopOwnedJob(string reason = "replace owned job", bool startNewJob = true)
         {
             Job stopping = ownedJob;
             firingTrace.Observe(pawn, ownedJob);
@@ -124,7 +124,7 @@ namespace RimFront
             ResetAttackProgress();
             if (pawn != null && stopping != null && pawn.CurJob == stopping)
             {
-                pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
+                pawn.jobs.EndCurrentJob(JobCondition.InterruptForced, startNewJob: startNewJob);
                 pawn.pather?.StopDead();
             }
         }
@@ -170,6 +170,7 @@ namespace RimFront
 
         internal void BeforeNativeJobStart(Pawn_JobTracker tracker, Job next, ref bool resumeCurrent)
         {
+            if (pawn?.jobs == tracker) firingTrace.RecordJobStart(pawn, next, ownedJob, resumeCurrent);
             if (pawn?.jobs != tracker || ownedJob == null || pawn.CurJob != ownedJob) return;
             if (!NativeJobPolicy.SuppressAttackResume(true, ownedJob.def?.defName, resumeCurrent,
                 CombatAdapter.IsEquippedReload(pawn, next))) return;
@@ -281,7 +282,11 @@ namespace RimFront
                     return;
                 }
                 if (NeedsNativeJobControl)
-                { Release("Control released for native job: " + pawn.CurJob.def.defName + "."); return; }
+                {
+                    firingTrace.ReportUnexpectedJob(pawn, ownedJob, pendingReload);
+                    Release("Control released for native job: " + pawn.CurJob.def.defName + ".");
+                    return;
+                }
                 if (CombatAdapter.IsSettingUpBipod(pawn))
                 {
                     // CE's finite setup Wait toil is not a Stance_Busy. Keep it intact:
@@ -312,6 +317,7 @@ namespace RimFront
                 // Movement cancels queued clicks even while a native reload/busy
                 // stance owns the pawn. Do this before that path returns below.
                 if (moving) pendingFire = false;
+                if (pendingReload) pendingFire = false;
                 if (pawn.CurJob == ownedJob && ownedJob?.def == JobDefOf.AttackStatic)
                 {
                     Verb verb = ownedJob.verbToUse;
@@ -333,7 +339,9 @@ namespace RimFront
                                 + " fired=" + attackHasFired + " idleTicks=" + attackIdleTicks
                                 + " reason=" + (stalled ? "stalled" : moving ? "movement" : pendingReload ? "reload"
                                     : !input.fire && !attackRequiresTriggerPress && attackHasFired ? "released after shot" : "invalid native aim/verb"));
-                        StopOwnedJob("attack lifecycle cancellation");
+                        // R is replacing this attack with a reload. Do not let native
+                        // job selection run between cancelling it and asking CE to reload.
+                        StopOwnedJob("attack lifecycle cancellation", startNewJob: !pendingReload);
                         pendingFire = false;
                         if (stalled) { message = "Attack could not start; ready."; return; }
                     }
@@ -343,7 +351,7 @@ namespace RimFront
                     pendingReload = false;
                     if (!CombatAdapter.IsReloading(pawn))
                     {
-                        StopOwnedJob("manual reload");
+                        StopOwnedJob("manual reload", startNewJob: false);
                         CombatAdapter.TryReload(pawn, out message);
                         firingTrace.Event(pawn, "reload-result", message);
                     }
@@ -423,6 +431,11 @@ namespace RimFront
         void Order(Job job)
         {
             Pawn actor = pawn;
+            int issuedId = job.loadID;
+            string requestedName = job.def?.defName;
+            bool requestedAttack = job.def == JobDefOf.AttackStatic;
+            Verb requestedVerb = job.verbToUse;
+            int initialShot = requestedVerb?.LastShotTick ?? -1;
             ownedJob = job;
             ResetAttackProgress();
             attackRequiresTriggerPress = job?.def == JobDefOf.AttackStatic && NativeFireModes.RequiresTriggerPress(actor);
@@ -435,10 +448,28 @@ namespace RimFront
             try { actor.jobs.TryTakeOrderedJob(job); }
             finally
             {
-                if (pawn == actor) ownedJob = actor.CurJob == job ? job : null;
-                if (actor.CurJob != job) NativeManualAim.Clear(actor);
+                // Acceptance can mean queued, not started. Manual aim belongs only to
+                // the current job; a deferred attack must not survive as a foreign order.
+                // Native cleanup pools jobs, so also verify this allocation's load ID.
+                bool sameAllocation = job.loadID == issuedId;
+                bool started = sameAllocation && actor.CurJob == job;
+                bool deferred = sameAllocation && !started && actor.jobs.jobQueue.Contains(job);
+                if (deferred)
+                    actor.jobs.EndCurrentOrQueuedJob(job, JobCondition.InterruptForced, startNewJob: false);
+                if (pawn == actor)
+                {
+                    ownedJob = started ? job : null;
+                    if (deferred && requestedAttack && input != null && !requireFireRelease
+                        && !pendingReload && !pendingFireMode && !Find.TickManager.Paused
+                        && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds)
+                        && Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f
+                        && (requestedVerb?.LastShotTick ?? initialShot) <= initialShot)
+                        pendingFire = true; // Retry this accepted, unfired request with fresh aim.
+                }
+                if (!started) NativeManualAim.Clear(actor);
                 if (NativeFiringTrace.Enabled)
-                    firingTrace.Event(actor, "order-result", "requested=" + job?.def?.defName + " accepted=" + (actor.CurJob == job)
+                    firingTrace.Event(actor, "order-result", "requested=" + requestedName + " started=" + started
+                        + " removedDeferred=" + deferred
                         + " current=" + actor.CurJob?.def?.defName);
                 firingTrace.Observe(actor, ownedJob);
             }

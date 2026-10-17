@@ -111,7 +111,10 @@ try {
             @{ Name = 'exit-leaves-native-burst-running'; Scenario = 'exit-mid-burst';
                 Anchor = 'verb.Reset();'; Replacement = '; // mutation: leave active burst running' },
             @{ Name = 'movement-retains-reload-click'; Scenario = 'movement-during-reload-cancels-click';
-                Anchor = 'if (moving) pendingFire = false;'; Replacement = '; // mutation: retain queued click during reload movement' }
+                Anchor = 'if (moving) pendingFire = false;'; Replacement = '; // mutation: retain queued click during reload movement' },
+            @{ Name = 'ordered-attack-left-queued'; Scenario = 'deferred-attack-manual-reload';
+                Anchor = 'bool deferred = sameAllocation && !started && actor.jobs.jobQueue.Contains(job);';
+                Replacement = 'bool deferred = false; // mutation: abandon the accepted queued attack' }
         )
         foreach ($mutation in $mutations) {
             $mutated = Replace-ExactlyOnce $original $mutation.Anchor $mutation.Replacement

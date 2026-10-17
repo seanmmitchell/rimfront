@@ -20,6 +20,7 @@ namespace RimFront
         bool attackHasFired;
         Stance_Busy previousAttackStance;
         int previousAttackTicks, previousShotTick = -1;
+        int attackInitialShotTick = -1;
         DateTime acceptedAt;
         string message = "Select a drafted colonist and choose Play in RimFront.";
         string movementMode = "Native path";
@@ -153,10 +154,28 @@ namespace RimFront
             ResetAttackProgress();
         }
 
+        internal void BeforeNativeJobStart(Pawn_JobTracker tracker, Job next, ref bool resumeCurrent)
+        {
+            if (pawn?.jobs != tracker || ownedJob == null || pawn.CurJob != ownedJob) return;
+            if (!NativeJobPolicy.SuppressAttackResume(true, ownedJob.def?.defName, resumeCurrent,
+                CombatAdapter.IsEquippedReload(pawn, next))) return;
+            // CE normally suspends and queues this exact attack while reloading.
+            // Cleanup relinquishes its manual aim, so replaying that queued job would
+            // be a foreign attack with stale geometry. Let the reload run unchanged;
+            // subsequent fire uses the normal trigger policy and a fresh crosshair ray.
+            resumeCurrent = false;
+            bool freshInput = input != null && !requireFireRelease && !pendingReload && !pendingFireMode
+                && !Find.TickManager.Paused && (DateTime.UtcNow - acceptedAt).TotalMilliseconds <= 350
+                && Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f;
+            pendingFire |= NativeAttackLifecycle.RetryAfterReload(freshInput, attackHasFired,
+                attackInitialShotTick, ownedJob.verbToUse?.LastShotTick ?? attackInitialShotTick);
+        }
+
         void ResetAttackProgress()
         {
             attackIdleTicks = 0; attackHasFired = attackRequiresTriggerPress = false;
             previousAttackStance = null; previousAttackTicks = 0; previousShotTick = -1;
+            attackInitialShotTick = -1;
         }
 
         public override void GameComponentUpdate()
@@ -354,6 +373,7 @@ namespace RimFront
             ownedJob = job;
             ResetAttackProgress();
             attackRequiresTriggerPress = job?.def == JobDefOf.AttackStatic && NativeFireModes.RequiresTriggerPress(actor);
+            attackInitialShotTick = job?.verbToUse?.LastShotTick ?? -1;
             try { actor.jobs.TryTakeOrderedJob(job); }
             finally
             {
@@ -400,6 +420,15 @@ namespace RimFront
         internal static int CancellationCooldown(bool bursting, int remaining, int nativeCooldown)
             => Math.Max(0, bursting ? Math.Max(remaining, nativeCooldown) : remaining);
         internal static bool ShouldResetOnCleanup(bool succeeded, bool bursting) => !succeeded || bursting;
+        internal static bool RetryAfterReload(bool freshInput, bool observedShot, int initialShotTick, int lastShotTick)
+            => freshInput && !observedShot && lastShotTick <= initialShotTick;
+    }
+
+    [HarmonyPatch(typeof(Pawn_JobTracker), nameof(Pawn_JobTracker.StartJob))]
+    internal static class PreventStaleOwnedAttackAfterReload
+    {
+        static void Prefix(Pawn_JobTracker __instance, Job __0, ref bool __3)
+            => RimFrontGame.Active?.BeforeNativeJobStart(__instance, __0, ref __3);
     }
 
     [HarmonyPatch(typeof(Pawn_JobTracker), "CleanupCurrentJob")]

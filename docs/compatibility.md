@@ -1,10 +1,10 @@
-# Compatibility and verification — 0.6.0
+# Compatibility and verification — 0.6.1
 
-Updated 2026-10-17. **Both 0.6.0 builds and all 90,136 automated checks passed.** No live 0.6.0 gameplay or GPU validation is recorded here. Compilation, metadata inspection and standalone helper tests do not certify native camera behavior, patch coexistence, combat outcomes or performance.
+Updated 2026-10-17. **Both 0.6.1 builds and all 95,887 automated checks passed.** No live 0.6.1 gameplay or GPU validation is recorded here. Compilation, metadata inspection and standalone helper tests do not certify native camera behavior, patch coexistence, combat outcomes or performance.
 
 ## Target matrix
 
-| Target | Build boundary | 0.6.0 live status |
+| Target | Build boundary | 0.6.1 live status |
 | --- | --- | --- |
 | RimWorld 1.6 | Pinned `Krafs.Rimworld.Ref` 1.6.4871, `Lib.Harmony` 2.4.2, .NET Framework 4.7.2 | Not validated |
 | RimWorld 1.7 | Installed game/Harmony, UnityStubs/Waylith references, .NET 10 | Not validated |
@@ -16,6 +16,11 @@ The inspected 1.7 installation was 1.7.4981 on the unstable branch. Its APIs may
 
 ## Evidence and its limits
 
+Version 0.6.1 passed 81,793 pawn/model/animation/combat/vegetation checks, 11,126 movement checks, 2,803 geometry/lighting/weather/weapon/effect checks, 95 job-policy checks, 20 window-icon checks, 40 native input/aim checks and 10 package contract checks. Both builds passed; 1.6 retained NU1900 for unavailable audit metadata and 1.7 built without warnings. Logs: `work/runtime-test/build-0.6.1.log` and `tests-0.6.1.log`.
+
+The inspected 0.5.8 Player.log records returns to colony view for `AttackStatic` at 01:26:52 and 01:27:16 on 2026-10-17. Installed CE code suspends and queues that job during an equipped-weapon reload; 0.6.1 suppresses only resumption of RimFront's exact owned attack in that verified transition. The fourth `StartJob` argument and unique overload were checked in both game references. Tests cover ownership exclusions, no phantom trigger after the last shot, accepted pre-shot intent, and native hook signatures; they do not execute a live reload.
+
+Vegetation tests cover camera-facing geometry, UVs, fallback silhouettes, shared growth/size bounds and camera-independent collision proxies. Installed 1.7 implementation inspection confirms the exact mesh-list upload, deferred bounds and material UV methods are functional. Native plant material selection is deterministic for the supplied plant. No plant texture is copied into the package. Custom wind/fall shaders, secondary-color masks and snow overlays are outside this renderer; leaf alpha is approximated for collision.
 Version 0.6.0 passed 76,042 pawn/model/animation/combat lifecycle checks, 11,126 movement checks, 2,803 geometry/lighting/weather/weapon/effect checks, 95 job-policy checks, 20 window-icon checks, 40 native input/aim checks and 10 package contract checks. The retired HTTP/browser suites are no longer included. Package tests verify that stale staging files cannot leak into fresh archives and that mismatched versions or dependency DLLs are rejected. Both target DLLs passed a separate metadata inspection confirming version 0.6.0 and absence of the retired transport types and networking/serialization references.
 
 The 1.6 build emitted NU1900 because NuGet vulnerability-audit metadata was unavailable; the 1.7 build completed without warnings. Development logs are `work/runtime-test/build-0.6.0.log`, `tests-0.6.0.log` and `native-only-0.6.0.log`. Tests ran without a browser, Node.js, HTTP listener or game session.

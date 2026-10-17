@@ -18,5 +18,10 @@ namespace RimFront
             bool nativeDriver, bool equippedTarget, bool hasBipod)
             => name == "JobDef_SetUpBipod" && !playerForced && !forceSleep
                 && nativeDriver && equippedTarget && hasBipod;
+        internal static bool CompatibleReload(string name, bool forceSleep,
+            bool nativeDriver, bool selfReloader, bool equippedTarget, bool hasAmmoComp)
+            => name == "ReloadWeapon" && !forceSleep && nativeDriver && selfReloader && equippedTarget && hasAmmoComp;
+        internal static bool SuppressAttackResume(bool owned, string current, bool resume, bool compatibleReload)
+            => owned && current == "AttackStatic" && resume && compatibleReload;
     }
 }

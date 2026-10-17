@@ -1,6 +1,6 @@
-# Native smoke checklist — 0.6.0
+# Native smoke checklist — 0.6.1
 
-These are required live checks, **not recorded passes**. Close RimWorld, install the extracted 0.6.0 package, restart and use a disposable colony. Run on both 1.6 and 1.7, first with Harmony/Core and then an appropriate CE build. Record exact versions, mod list, hardware, Player.log, expected/actual results and reproduction steps.
+These are required live checks, **not recorded passes**. Close RimWorld, install the extracted 0.6.1 package, restart and use a disposable colony. Run on both 1.6 and 1.7, first with Harmony/Core and then an appropriate CE build. Record exact versions, mod list, hardware, Player.log, expected/actual results and reproduction steps.
 
 ## Package, input and lifecycle
 
@@ -19,6 +19,8 @@ These are required live checks, **not recorded passes**. Close RimWorld, install
 | Save/resources | Save while controlling, exit with a projectile in flight, load another save; repeat entry/exit | Possession is not saved; owned shot metadata survives where required; old map, geometry and animation caches clear; memory does not grow continuously |
 
 ## Movement and scene
+
+For vegetation, orbit trees and bushes at several heights and distances: cards remain upright, face the observer, obey depth/fog and use installed native artwork. Test growth, leafless/immature variants, missing art, dense forests, lamps/night and save changes. Plant hit volumes remain fixed while looking around; transparent leaf pixels do not provide exact collision silhouettes.
 
 | Case | Action | Expected result |
 | --- | --- | --- |
@@ -57,6 +59,8 @@ These are required live checks, **not recorded passes**. Close RimWorld, install
 | M60 bipod | Use actual equipped CE M60/bipod before/after firing and reload | Automatic stationary setup completes once without exit or restart loop; external/forced jobs still release normally |
 | Setup input | Hold LMB/WASD or press R/F during setup; release before completion | Setup finishes without replacement; queued intent follows mode/release rules afterward; no fabricated shot |
 | Reload continuation | Partly/fully empty M60; hold Auto through reload | Native reload finishes, eligible held fire resumes, and animation stays shot-driven |
+| Automatic last-round reload | Empty magazines in Auto, Semi-auto and Burst; repeat with no reserve ammo and after supplying ammo | No return to colony view for a resumed AttackStatic; no phantom Semi/Burst trigger; held Auto resumes only with valid current input |
+| Reload before first shot | Trigger a native reload before the accepted click can fire; release the mouse during reload | One accepted initial shot can resume after reload using current aim; movement, pause, focus loss or switching modes cancels pending intent |
 
 ## Models, equipment and reload presentation
 

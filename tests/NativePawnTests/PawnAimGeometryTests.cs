@@ -139,7 +139,7 @@ internal static partial class Program
             List<float[]> va = Vectors(a, "Vertices"), vb = Vectors(b, "Vertices");
             Check(va.Count == vb.Count, "same growth step has stable special plant topology: " + kind);
             for (int i = 0; i < va.Count; i++) for (int axis = 0; axis < 3; axis++)
-                Check(va[i][axis] == vb[i][axis], "same growth step has identical special plant rendered/aim vertices: " + kind);
+                Check(va[i][axis] == vb[i][axis], "same growth step preserves legacy plant catalog vertices: " + kind);
         }
     }
 }

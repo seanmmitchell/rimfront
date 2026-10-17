@@ -1,4 +1,4 @@
-# Native architecture — 0.6.0
+# Native architecture — 0.6.1
 
 RimFront runs input, presentation and game integration inside the RimWorld process.
 
@@ -27,6 +27,8 @@ NativeView input -> RimFrontGame -> native movement / attack / reload jobs
 Owned CE ballistic queries use floating-point cell traversal and rendered contact distances, with bounded neighboring candidates. Native shield callbacks, foliage chance, impact and armor processing remain authoritative. Stock straight vanilla bullets carry scoped, serialized aim metadata and test close/endpoint solid obstacles before farther targets. Unsupported vanilla trajectories and CE beam collision retain native paths. Shot metadata can outlive possession; map/game changes clear CPU caches. No replacement damage system is used.
 
 ## Rendering and caches
+
+`NativeVegetation` draws upright camera-facing cards using the current native plant graphic's texture, tint and UV transform. It borrows textures and owns only its reusable meshes/materials. Game/mod artwork is loaded at runtime, never packaged. All plants share this path, including trees and bushes whose definitions do not use those words. Sprite dimensions and the stable world-axis collision proxy share native visual-size range and quantized growth, capped at 3 cells wide and 4.1 cells high. Alpha holes are visual; native plant interception probability remains authoritative. Custom wind/fall shaders, secondary-color masks and snow overlays are not reproduced.
 
 `NativeScene` batches static geometry into 12 × 12 chunks, with at most 49 cached chunks and one missing-chunk build per frame. Dirty notifications prioritize changes; a 100 ms rotating signature check provides fallback invalidation. The camera far plane is 30 cells. Dynamic pawns and doors update separately. Cached meshes and materials use implemented engine APIs on both target branches.
 

@@ -34,7 +34,6 @@ namespace RimFront
         static readonly Color Stone = new Color(.58f, .60f, .53f);
         static readonly Color Wood = new Color(.46f, .32f, .19f);
         static readonly Color Metal = new Color(.39f, .44f, .44f);
-        static readonly Color Leaves = new Color(.29f, .43f, .23f);
         static readonly Color Fog = new Color(.075f, .105f, .12f);
 
         internal static void Initialize()
@@ -77,6 +76,7 @@ namespace RimFront
             }
             NativeLighting.Begin(map);
             NativePawns.BeginFrame(controlled);
+            NativeVegetation.Begin(NativeView.RenderPosition, yaw);
             int centerX = controlled.Position.x / ChunkSize, centerZ = controlled.Position.z / ChunkSize;
             expired.Clear();
             foreach (KeyValuePair<int, Chunk> pair in chunks)
@@ -136,6 +136,11 @@ namespace RimFront
                     if (thing == null || !thing.Spawned || thing.Map != map || thing == controlled || !drawn.Add(thing.thingIDNumber)) continue;
                     Vector3 pos = thing.DrawPos;
                     float dx = pos.x - observer.x, dz = pos.z - observer.z;
+                    if (thing is Plant plant)
+                    {
+                        if (!thing.Position.Fogged(map)) NativeVegetation.Queue(plant, dx * dx + dz * dz);
+                        continue;
+                    }
                     if (dx * dx + dz * dz > DynamicRadiusSquared || thing.Position.Fogged(map)) continue;
                     Building_Door door = thing as Building_Door;
                     if (door != null) { DrawDoor(door, pos); continue; }
@@ -143,6 +148,7 @@ namespace RimFront
                         NativePawns.Draw(corpse.InnerPawn, pos, dx * dx + dz * dz, true);
                 }
             }
+            NativeVegetation.Draw(map);
             // Pawn positions/spawns are current every frame; chunk refresh is for static cells only.
             foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
             {
@@ -202,6 +208,7 @@ namespace RimFront
         // CPU geometry only; the targeting cache owns these arrays and never creates a mesh.
         internal static void AppendAimGeometry(Builder builder, Thing thing)
         {
+            if (thing is Plant plant) { NativeVegetation.AppendAimGeometry(builder, plant); return; }
             Vector3 savedOrigin = builder.Origin;
             Quaternion savedRotation = builder.Rotation;
             try
@@ -230,7 +237,7 @@ namespace RimFront
             doorMesh = null;
             material = null; currentMap = null; nextRefresh = 0;
             NativeAimTargeting.Dispose();
-            NativePawns.Dispose(); NativeWeapons.Dispose(); NativeCombatEffects.Dispose(); NativeBloodEffects.Dispose(); NativeWeather.Dispose(); NativeLighting.Dispose();
+            NativePawns.Dispose(); NativeWeapons.Dispose(); NativeVegetation.Dispose(); NativeCombatEffects.Dispose(); NativeBloodEffects.Dispose(); NativeWeather.Dispose(); NativeLighting.Dispose();
         }
         static void Destroy(UnityEngine.Object value) { if (value != null) UnityEngine.Object.Destroy(value); }
 
@@ -288,15 +295,13 @@ namespace RimFront
                         foreach (Thing thing in things)
                         {
                             if (thing.Position != cell) continue;
-                            if (thing is Building_Door || thing is Corpse) Dynamic.Add(thing);
+                            if (thing is Building_Door || thing is Corpse || thing is Plant) Dynamic.Add(thing);
                             if (thing is Pawn || !SupportedStatic(thing)) continue;
                             unchecked
                             {
                                 hash = hash * 31 + thing.thingIDNumber;
                                 hash = hash * 31 + thing.Rotation.AsInt;
                                 hash = hash * 31 + thing.DrawColor.GetHashCode();
-                                Plant plant = thing as Plant;
-                                if (plant != null) hash = hash * 31 + PlantGrowth(plant.Growth).GetHashCode();
                                 if (thing is Filth filth) hash = hash * 31 + BloodFilthHash(filth);
                                 if (thing.def.category == ThingCategory.Item) hash = hash * 31 + NativeObjectModels.ItemStackSignature(thing.stackCount);
                             }
@@ -339,11 +344,10 @@ namespace RimFront
             }
         }
 
-        static bool SupportedStatic(Thing thing) { return !(thing is Corpse) && (thing is Building || thing is Plant || thing.def.category == ThingCategory.Item
+        static bool SupportedStatic(Thing thing) { return !(thing is Corpse) && !(thing is Plant) && (thing is Building || thing.def.category == ThingCategory.Item
             || (bloodTrailsVisible && thing is Filth && bloodDefinitions.ContainsKey(thing.def))); }
 
-        // Chunk invalidation, rendered geometry and aim geometry must use the same
-        // growth step; otherwise slowly growing foliage gains invisible hit faces.
+        // Native plant cards and stable CPU collision proxies share this growth step.
         internal static float PlantGrowth(float growth)
         {
             if (float.IsNaN(growth) || float.IsInfinity(growth)) return .15f;
@@ -352,6 +356,7 @@ namespace RimFront
 
         internal static void AddThing(Builder b, Thing thing)
         {
+            if (thing is Plant plant) { NativeVegetation.AppendAimGeometry(b, plant); return; }
             Vector3 pos = thing.DrawPos; pos.y = .04f;
             Quaternion rotation = Quaternion.Euler(0, thing.Rotation.AsAngle, 0);
             b.Origin = pos; b.Rotation = rotation;
@@ -363,17 +368,6 @@ namespace RimFront
                 b.Box(new Vector3(-.49f, 1.2f, 0), new Vector3(.12f, 2.4f, .34f), Stone);
                 b.Box(new Vector3(.49f, 1.2f, 0), new Vector3(.12f, 2.4f, .34f), Stone);
                 b.Box(new Vector3(0, 2.35f, 0), new Vector3(1.1f, .16f, .34f), Stone);
-            }
-            else if (thing is Plant plant)
-            {
-                float growth = PlantGrowth(plant.Growth);
-                if (plant.def.plant.IsTree)
-                {
-                    b.Box(new Vector3(0, growth * 1.3f, 0), new Vector3(.20f, growth * 2.6f, .20f), Wood);
-                    b.Pyramid(new Vector3(0, growth * 1.1f, 0), 1.45f * growth, 2.2f * growth, Leaves);
-                    b.Pyramid(new Vector3(0, growth * 2f, 0), .95f * growth, 1.6f * growth, Leaves * 1.12f);
-                }
-                else b.Pyramid(Vector3.zero, .5f * growth, .65f * growth, Leaves);
             }
             else if (thing is Building)
             {

@@ -14,6 +14,7 @@ namespace RimFront
         static readonly Type AmmoType = AccessTools.TypeByName("CombatExtended.CompAmmoUser");
         static readonly Type BipodType = AccessTools.TypeByName("CombatExtended.BipodComp");
         static readonly Type BipodDriver = AccessTools.TypeByName("CombatExtended.JobDriver_SetUpBipod");
+        static readonly Type ReloadDriver = AccessTools.TypeByName("CombatExtended.JobDriver_Reload");
         static readonly MethodInfo ReloadMethod = AmmoType?.GetMethod("TryStartReload", Type.EmptyTypes);
         static readonly PropertyInfo AmmoCount = AmmoType?.GetProperty("CurMagCount");
         static readonly PropertyInfo MagazineSize = AmmoType?.GetProperty("MagSize");
@@ -67,6 +68,14 @@ namespace RimFront
         }
 
         internal static bool IsReloading(Pawn pawn) => pawn.CurJob?.def?.defName == "ReloadWeapon";
+        internal static bool IsEquippedReload(Pawn pawn, Job job)
+        {
+            ThingWithComps weapon = pawn?.equipment?.Primary;
+            if (pawn == null || job == null || weapon == null || ReloadDriver == null) return false;
+            return NativeJobPolicy.CompatibleReload(job.def?.defName, job.forceSleep,
+                job.def?.driverClass == ReloadDriver, job.targetA.Thing == pawn,
+                job.targetB.Thing == weapon, AmmoComp(pawn) != null);
+        }
         internal static bool IsSettingUpBipod(Pawn pawn)
         {
             Job job = pawn?.CurJob;

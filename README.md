@@ -1,4 +1,4 @@
-# RimFront 0.6.0
+# RimFront 0.6.1
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 
@@ -6,7 +6,7 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 
 ## Install and enter
 
-1. Close RimWorld. Download `RimFront-0.6.0.zip` from the [0.6.0 release](https://github.com/seanmmitchell/rimfront/releases/tag/v0.6.0) and extract it into `RimWorld/Mods/RimFront`, with `About/About.xml` directly inside that folder. Separate 1.6 and 1.7 assemblies are included. Use the named runtime ZIP to play; GitHub's automatic source archives require a build.
+1. Close RimWorld. Download `RimFront-0.6.1.zip` from the [0.6.1 release](https://github.com/seanmmitchell/rimfront/releases/tag/v0.6.1) and extract it into `RimWorld/Mods/RimFront`, with `About/About.xml` directly inside that folder. Separate 1.6 and 1.7 assemblies are included. Use the named runtime ZIP to play; GitHub's automatic source archives require a build.
 2. Enable Harmony, Core, optional Combat Extended, then RimFront. Use dependency versions appropriate for your game branch and restart after updating.
 3. Load a test colony, draft a player-controlled humanlike colonist, select them, and choose **Play in RimFront**. Taking control replaces their previous order.
 
@@ -39,6 +39,8 @@ Switching modes cancels the owned attack, preserves cooldown, clears queued fire
 
 Successful completed attacks preserve CE repeat-shot timing state. Interruptions reset the owned verb. Verified automatic setup for the equipped CE bipod weapon keeps first-person control while its stationary job completes; unrelated or forced jobs retain their normal ownership rules. These behaviors need live sustained-fire and reload checks, especially with the M60.
 
+Version 0.6.1 prevents a verified CE reload from suspending and replaying RimFront's old firing job. Reloads still run natively; subsequent fire uses current input and a fresh aim point. Automatic reload after the last round does not create a second Semi-auto or Burst trigger press. Foreign attack orders keep their usual ownership rules.
+
 Owned CE ballistic contacts use displayed pawn and world geometry while retaining native impact handlers. Stock straight vanilla bullets have height-aware contact filtering, exact aim endpoints and close/endpoint solid-obstacle checks, with native accuracy preserved. **Explosive, arcing and custom vanilla projectiles retain their native trajectory** and report “native 2D trajectory.” CE beams and unsupported custom trajectories retain their documented native paths; precise vertical contact is not promised for every weapon.
 
 ## Movement
@@ -49,7 +51,9 @@ Disable **True analog movement** under **Options → Mod settings → RimFront**
 
 ## Scene, equipment and effects
 
-Original models represent terrain, fog, walls, animated doors, vegetation, furniture, workstations, utilities, items, corpses and equipment. Unknown definitions use size/category/name-based fallbacks. Nine pawn rig families, six human body shapes, supported apparel layers and recognized missing/prosthetic limbs provide broad coverage, not bespoke models for every definition or xenotype.
+Original models represent terrain, fog, walls, animated doors, furniture, workstations, utilities, items, corpses and equipment. Unknown definitions use size/category/name-based fallbacks. Nine pawn rig families, six human body shapes, supported apparel layers and recognized missing/prosthetic limbs provide broad coverage, not bespoke models for every definition or xenotype.
+
+Trees, bushes and other plants use their installed game/mod artwork on upright, camera-facing sprites. Perspective, depth testing, growth and native lighting still apply. Plant collision uses stable approximate trunk/foliage volumes within the sprite's size envelope; it does not rotate with the camera or trace individual transparent leaf pixels. Existing game textures are read at runtime and are not bundled with RimFront.
 
 Nearby pawns animate from real motion, jobs and observed attacks. First-person hands and sleeves reflect supported appearance. Drafted pawns hold equipment; undrafted pawns stow one-handed weapons at the hip, two-handed weapons on the back, and physical shields on the back. Available-arm rules prevent duplicate weapon/shield hand assignments. Energy belts remain separate from physical shield models.
 

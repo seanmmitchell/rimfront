@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>RimFront</name>
+  <author>RimFront contributors</author>
+  <packageId>rimfront.firstperson</packageId>
+  <supportedVersions><li>1.6</li><li>1.7</li></supportedVersions>
+  <modDependencies>
+    <li><packageId>brrainz.harmony</packageId><displayName>Harmony</displayName><steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl></li>
+  </modDependencies>
+  <loadAfter><li>brrainz.harmony</li><li>Ludeon.RimWorld</li><li>CETeam.CombatExtended</li></loadAfter>
+  <description>Experimental native first-person renderer for RimWorld. Control a drafted colonist inside the game's engine, with analog movement, native path fallback, modeled pawns and apparel, bounded limb animation, weapons and real-job reload animations, expanded scenery, observed projectile/impact effects, game-driven lighting, snow and weather. No browser, Modern Warfare 2 installation, or external engine is required. Combat Extended is optional; native attacks, ballistics, damage, reload timing and movement costs remain authoritative. Separate builds target RimWorld 1.6 and 1.7. Generic model families cover unfamiliar definitions; bespoke coverage and universal mod compatibility are not claimed. See README for validation and limitations.</description>
+</ModMetaData>

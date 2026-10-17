@@ -1,4 +1,4 @@
-# RimFront 0.6.1
+# RimFront 0.6.2
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 
@@ -6,7 +6,7 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 
 ## Install and enter
 
-1. Close RimWorld. Download `RimFront-0.6.1.zip` from the [0.6.1 release](https://github.com/seanmmitchell/rimfront/releases/tag/v0.6.1) and extract it into `RimWorld/Mods/RimFront`, with `About/About.xml` directly inside that folder. Separate 1.6 and 1.7 assemblies are included. Use the named runtime ZIP to play; GitHub's automatic source archives require a build.
+1. Close RimWorld. Download `RimFront-0.6.2.zip` from the [0.6.2 release](https://github.com/seanmmitchell/rimfront/releases/tag/v0.6.2) and extract it into `RimWorld/Mods/RimFront`, with `About/About.xml` directly inside that folder. Separate 1.6 and 1.7 assemblies are included. Use the named runtime ZIP to play; GitHub's automatic source archives require a build.
 2. Enable Harmony, Core, optional Combat Extended, then RimFront. Use dependency versions appropriate for your game branch and restart after updating.
 3. Load a test colony, draft a player-controlled humanlike colonist, select them, and choose **Play in RimFront**. Taking control replaces their previous order.
 
@@ -36,6 +36,10 @@ CE retains its own accuracy, ballistics, ammunition, armor, shields, damage, war
 | Fixed | Uses the weapon's native mode; no alternate modes are invented |
 
 Switching modes cancels the owned attack, preserves cooldown, clears queued fire and requires releasing a held trigger before firing again. Native reload jobs continue. Pause and stale-input protection prevent a held button from becoming a new queued press. A quick click retains its initial warmup/shot; movement and reload requests explicitly cancel an owned warmup.
+
+Version 0.6.2 restores held Auto/Fixed fire after fresh input returns from a slow frame. The stale tick still cancels its old attack, but no longer latches Auto off until mouse release. Recovery does not create a new Semi-auto/Burst click; explicit pause and mode-switch release requirements remain in force.
+
+For firing problems, enable **Options → Mod settings → RimFront → Diagnostics → Trace firing input and actions**, reproduce the issue, then disable it. The option applies immediately and is off by default. Entries prefixed `[RimFront:Fire]` in `Player.log` connect physical mouse transitions to trigger gates, attack orders, observed shots, reloads, native job changes and interruptions, with weapon/mode/ammunition context. Repeated failures are deduplicated and output is rate limited. On Windows, the log is under `%USERPROFILE%\AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios\Logs\Player.log` on the inspected 1.7 installation (older versions may put it directly in the parent folder). Copy the log after reproducing, before restarting the game.
 
 Successful completed attacks preserve CE repeat-shot timing state. Interruptions reset the owned verb. Verified automatic setup for the equipped CE bipod weapon keeps first-person control while its stationary job completes; unrelated or forced jobs retain their normal ownership rules. These behaviors need live sustained-fire and reload checks, especially with the M60.
 

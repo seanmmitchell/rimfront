@@ -15,6 +15,7 @@ namespace RimFront
         public bool bloodTrails = true;
         public bool impactEffects = true;
         public bool pawnIndicators = true;
+        public bool traceFiring = false;
         Vector2 scrollPosition;
         float contentHeight = 600f;
         public override void ExposeData()
@@ -29,6 +30,7 @@ namespace RimFront
             Scribe_Values.Look(ref bloodTrails, "bloodTrails", true);
             Scribe_Values.Look(ref impactEffects, "impactEffects", true);
             Scribe_Values.Look(ref pawnIndicators, "pawnIndicators", true);
+            Scribe_Values.Look(ref traceFiring, "traceFiring", false);
             base.ExposeData();
         }
         internal void Draw(Rect rect)
@@ -64,6 +66,10 @@ namespace RimFront
                 "Show bleeding effects and native blood stains in RimFront. Native wound treatment and cleaning remain authoritative.");
             listing.CheckboxLabeled("Surface impact effects", ref impactEffects,
                 "Show sparks, chips, dust and contact marks from observed projectile impacts in RimFront.");
+            listing.Gap();
+            listing.Label("Diagnostics");
+            listing.CheckboxLabeled("Trace firing input and actions", ref traceFiring,
+                "Write bounded firing diagnostics to Player.log: mouse transitions, trigger gates, attacks, shots, reloads and interruptions. Applies immediately. Enable while reproducing a firing issue, then disable.");
             contentHeight = Mathf.Max(rect.height, listing.CurHeight + 12f);
             listing.End();
             Widgets.EndScrollView();

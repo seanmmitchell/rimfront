@@ -5,7 +5,7 @@
     <TargetFramework Condition="'$(RimWorldVersion)' == '1.7'">net10.0</TargetFramework>
     <AssemblyName>RimFront</AssemblyName>
     <RootNamespace>RimFront</RootNamespace>
-    <Version>0.6.1</Version>
+    <Version>0.6.2</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>

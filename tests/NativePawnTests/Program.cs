@@ -58,6 +58,7 @@ internal static partial class Program
             TestAimLifecycle(assembly);
             TestAttackLifecycle(assembly);
             TestFireModes(assembly);
+            TestFireDebug(assembly);
             TestShotCadence(assembly);
             TestReloadContinuation(assembly);
             TestVegetation(assembly);

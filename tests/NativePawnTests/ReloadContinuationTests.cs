@@ -59,7 +59,7 @@ internal static partial class Program
         MethodInfo before = game.GetMethod("BeforeNativeJobStart", Flags);
         Type trackerType = before.GetParameters()[0].ParameterType, jobType = before.GetParameters()[1].ParameterType;
         Type pawnType = game.GetField("pawn", Flags).FieldType;
-        object session = RuntimeHelpers.GetUninitializedObject(game);
+        object session = Activator.CreateInstance(game, new object[] { null });
         object pawn = RuntimeHelpers.GetUninitializedObject(pawnType);
         object tracker = RuntimeHelpers.GetUninitializedObject(trackerType);
         object foreignTracker = RuntimeHelpers.GetUninitializedObject(trackerType);

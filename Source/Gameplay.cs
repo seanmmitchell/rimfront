@@ -16,6 +16,8 @@ namespace RimFront
         InputCommand input;
         bool pendingReload, pendingFire;
         bool pendingFireMode, requireFireRelease, attackRequiresTriggerPress;
+        bool suppressNextFireEdge, reportedStaleFire;
+        readonly NativeFiringTrace firingTrace = new NativeFiringTrace();
         int attackIdleTicks;
         bool attackHasFired;
         Stance_Busy previousAttackStance;
@@ -50,6 +52,8 @@ namespace RimFront
             oldFireAtWill = candidate.drafter.FireAtWill;
             input = null;
             pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
+            suppressNextFireEdge = reportedStaleFire = false;
+            firingTrace.Reset();
             Active = this;
             try
             {
@@ -60,6 +64,7 @@ namespace RimFront
                 bool analog = (RimFrontMod.Settings?.analogMovement ?? true) && AnalogMovement.Start(candidate, out fallback);
                 movementMode = analog ? "Analog" : "Native path";
                 NativeView.Start(candidate);
+                firingTrace.Event(pawn, "control-start", movementMode);
                 message = fallback ?? (movementMode + " movement - WASD move, mouse look, LMB fire, R reload, F fire mode, Escape return.");
                 if (fallback != null) Log.Warning("[RimFront] " + fallback);
                 Log.Message("[RimFront] Native 3D control started on RimWorld " + VersionControl.CurrentVersionString + "; " + CombatAdapter.Mode + "; " + movementMode + " movement.");
@@ -75,11 +80,12 @@ namespace RimFront
         public void Release(string reason)
         {
             bool wasActive = pawn != null || Active == this;
+            firingTrace.Event(pawn, "control-release", reason);
             try
             {
                 if (pawn != null)
                 {
-                    try { StopOwnedJob(); }
+                    try { StopOwnedJob("control release"); }
                     catch (Exception e) { Log.Warning("[RimFront] Native job cleanup: " + e.Message); }
                     if (pawn.drafter != null) pawn.drafter.FireAtWill = oldFireAtWill;
                 }
@@ -91,6 +97,8 @@ namespace RimFront
                 ownedJob = null;
                 input = null;
                 pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
+                suppressNextFireEdge = reportedStaleFire = false;
+                firingTrace.Reset();
                 message = reason;
                 if (Active == this) Active = null;
                 try { NativeView.Stop(); }
@@ -104,9 +112,12 @@ namespace RimFront
             }
         }
 
-        void StopOwnedJob()
+        void StopOwnedJob(string reason = "replace owned job")
         {
             Job stopping = ownedJob;
+            firingTrace.Observe(pawn, ownedJob);
+            if (stopping != null && NativeFiringTrace.Enabled)
+                firingTrace.Event(pawn, "cancel-owned-job", "job=" + stopping.def?.defName + " reason=" + reason);
             CancelOwnedAttack();
             NativeManualAim.Clear(pawn);
             ownedJob = null;
@@ -145,6 +156,9 @@ namespace RimFront
             // Runs before replacement/pooling, while exact ownership is still provable.
             // Never infer ownership later from a new job using the same weapon.
             if (pawn?.jobs != tracker || ownedJob == null || pawn.CurJob != ownedJob) return;
+            firingTrace.Observe(pawn, ownedJob);
+            if (NativeFiringTrace.Enabled)
+                firingTrace.Event(pawn, "native-cleanup", "job=" + ownedJob.def?.defName + " condition=" + condition);
             // Successful native completion has already finished the burst/cooldown.
             // Reset here would erase CE's repeating/short-warmup state every cycle.
             if (NativeAttackLifecycle.ShouldResetOnCleanup(condition == JobCondition.Succeeded,
@@ -165,10 +179,14 @@ namespace RimFront
             // subsequent fire uses the normal trigger policy and a fresh crosshair ray.
             resumeCurrent = false;
             bool freshInput = input != null && !requireFireRelease && !pendingReload && !pendingFireMode
-                && !Find.TickManager.Paused && (DateTime.UtcNow - acceptedAt).TotalMilliseconds <= 350
+                && !Find.TickManager.Paused && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds)
                 && Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f;
             pendingFire |= NativeAttackLifecycle.RetryAfterReload(freshInput, attackHasFired,
                 attackInitialShotTick, ownedJob.verbToUse?.LastShotTick ?? attackInitialShotTick);
+            if (NativeFiringTrace.Enabled)
+                firingTrace.Event(pawn, "reload-suppressed-stale-resume", "freshInput=" + freshInput
+                    + " pendingFire=" + pendingFire + " observedShot=" + attackHasFired
+                    + " initialShotTick=" + attackInitialShotTick + " LastShotTick=" + ownedJob.verbToUse?.LastShotTick);
         }
 
         void ResetAttackProgress()
@@ -192,8 +210,12 @@ namespace RimFront
                 if (command == null || command.action == "release")
                 { Release("Returned to colony view."); return; }
                 if (!command.IsValid()) { Release("Invalid native input; control released."); return; }
+                bool physicalFire = NativeView.FireHeld, rawFire = command.fire;
+                bool reloadInput = command.reload, modeInput = command.cycleFireMode;
+                bool recoveringStaleInput = suppressNextFireEdge;
                 // Track physical release even when paused commands mask trigger state.
-                command.fire &= NativeTriggerPolicy.AllowInput(NativeView.FireHeld, Find.TickManager.Paused, ref requireFireRelease);
+                command.fire &= NativeTriggerPolicy.AllowInput(physicalFire, Find.TickManager.Paused, ref requireFireRelease);
+                bool firePressed = NativeTriggerPolicy.Pressed(command.fire, input?.fire ?? false, ref suppressNextFireEdge);
                 // Every engine frame, with no 20 Hz network queue or 10 Hz full-map serialization.
                 // Paused clicks must not become surprise actions after unpausing.
                 if (Find.TickManager.Paused)
@@ -207,9 +229,15 @@ namespace RimFront
                 {
                     pendingReload |= command.reload;
                     pendingFireMode |= command.cycleFireMode;
-                    pendingFire |= command.fire && !(input?.fire ?? false);
+                    pendingFire |= firePressed;
                 }
+                firingTrace.Input(pawn, physicalFire, rawFire, command.fire, pendingFire, requireFireRelease,
+                    Find.TickManager.Paused, reloadInput, modeInput, recoveringStaleInput);
+                if (recoveringStaleInput && NativeFiringTrace.Enabled)
+                    firingTrace.Event(pawn, "stale-input-recovered", "held=" + physicalFire + " accepted=" + command.fire
+                        + " pendingFire=" + pendingFire + " releaseGate=" + requireFireRelease);
                 input = command;
+                firingTrace.Observe(pawn, ownedJob);
                 if (!Find.TickManager.Paused) NativeManualAim.Update(pawn, command.yaw, command.pitch);
                 acceptedAt = DateTime.UtcNow;
                 NativeScene.Draw(controlledMap, pawn, NativeView.Yaw);
@@ -231,13 +259,25 @@ namespace RimFront
             if (pawn == null || !CanControl(pawn) || input == null) return;
             try
             {
-                if ((DateTime.UtcNow - acceptedAt).TotalMilliseconds > 350)
+                firingTrace.Observe(pawn, ownedJob);
+                double inputAge = (DateTime.UtcNow - acceptedAt).TotalMilliseconds;
+                if (NativeTriggerPolicy.IsStaleInput(inputAge))
                 {
+                    if (!reportedStaleFire && (input.fire || ownedJob?.def == JobDefOf.AttackStatic))
+                    {
+                        reportedStaleFire = true;
+                        Log.Message("[RimFront] Firing interrupted by stale input (" + inputAge.ToString("0")
+                            + " ms); awaiting a fresh input sample.");
+                    }
+                    if (NativeFiringTrace.Enabled)
+                        firingTrace.Event(pawn, "stale-input", "ageMs=" + inputAge.ToString("0") + " held=" + input.fire);
                     AnalogMovement.Halt();
-                    if (ownedJob?.def == JobDefOf.Goto || ownedJob?.def == JobDefOf.AttackStatic) StopOwnedJob();
+                    if (ownedJob?.def == JobDefOf.Goto || ownedJob?.def == JobDefOf.AttackStatic) StopOwnedJob("stale input");
                     input = null;
                     pendingReload = pendingFire = pendingFireMode = false;
-                    requireFireRelease = true;
+                    // Clear stale actions, but do not latch off an automatic trigger.
+                    // The first new sample restores held state without inventing a click.
+                    suppressNextFireEdge = true;
                     return;
                 }
                 if (NeedsNativeJobControl)
@@ -256,16 +296,19 @@ namespace RimFront
                     pendingFireMode = false;
                     if (NativeFireModes.CanCycle(pawn))
                     {
-                        if (ownedJob?.def == JobDefOf.AttackStatic) StopOwnedJob();
+                        if (ownedJob?.def == JobDefOf.AttackStatic) StopOwnedJob("fire mode change");
                         requireFireRelease |= input.fire;
                         input.fire = pendingFire = false;
                         NativeFireModes.TryCycle(pawn, out message);
                     }
                     else message = "This weapon has no alternate fire mode.";
+                    firingTrace.Event(pawn, "fire-mode-result", message);
                     // Preserve the feedback this tick; reload and movement resume next tick.
                     return;
                 }
                 bool moving = Math.Abs(input.forward) + Math.Abs(input.strafe) >= .1f;
+                if (moving && (input.fire || pendingFire))
+                    firingTrace.Event(pawn, "trigger-blocked-movement", "Fire input present; native firing waits for movement to stop.");
                 if (pawn.CurJob == ownedJob && ownedJob?.def == JobDefOf.AttackStatic)
                 {
                     Verb verb = ownedJob.verbToUse;
@@ -281,7 +324,13 @@ namespace RimFront
                         verb == null || !NativeManualAim.CanCast(verb), attackIdleTicks))
                     {
                         bool stalled = attackIdleTicks >= NativeAttackLifecycle.MaximumIdleTicks;
-                        StopOwnedJob();
+                        if (NativeFiringTrace.Enabled)
+                            firingTrace.Event(pawn, "attack-cancel-decision", "moving=" + moving + " reload=" + pendingReload
+                                + " held=" + input.fire + " requiresPress=" + attackRequiresTriggerPress
+                                + " fired=" + attackHasFired + " idleTicks=" + attackIdleTicks
+                                + " reason=" + (stalled ? "stalled" : moving ? "movement" : pendingReload ? "reload"
+                                    : !input.fire && !attackRequiresTriggerPress && attackHasFired ? "released after shot" : "invalid native aim/verb"));
+                        StopOwnedJob("attack lifecycle cancellation");
                         pendingFire = false;
                         if (stalled) { message = "Attack could not start; ready."; return; }
                     }
@@ -291,8 +340,9 @@ namespace RimFront
                     pendingReload = false;
                     if (!CombatAdapter.IsReloading(pawn))
                     {
-                        StopOwnedJob();
+                        StopOwnedJob("manual reload");
                         CombatAdapter.TryReload(pawn, out message);
+                        firingTrace.Event(pawn, "reload-result", message);
                     }
                 }
                 if (CombatAdapter.IsReloading(pawn) || pawn.stances.curStance is Stance_Busy)
@@ -311,6 +361,7 @@ namespace RimFront
                     pendingFire = false;
                     StopOwnedJob();
                     Job attack = CombatAdapter.CreateAttack(pawn, input.yaw, input.pitch, out message);
+                    firingTrace.Event(pawn, attack == null ? "attack-create-failed" : "attack-created", message);
                     if (attack != null) Order(attack);
                     return;
                 }
@@ -374,11 +425,20 @@ namespace RimFront
             ResetAttackProgress();
             attackRequiresTriggerPress = job?.def == JobDefOf.AttackStatic && NativeFireModes.RequiresTriggerPress(actor);
             attackInitialShotTick = job?.verbToUse?.LastShotTick ?? -1;
+            if (NativeFiringTrace.Enabled)
+                firingTrace.Event(actor, "order-request", "job=" + job?.def?.defName + " requiresPress=" + attackRequiresTriggerPress
+                    + " initialShotTick=" + attackInitialShotTick);
+            // Establish this verb's baseline before an immediate native cast can execute.
+            firingTrace.Observe(actor, job);
             try { actor.jobs.TryTakeOrderedJob(job); }
             finally
             {
                 if (pawn == actor) ownedJob = actor.CurJob == job ? job : null;
                 if (actor.CurJob != job) NativeManualAim.Clear(actor);
+                if (NativeFiringTrace.Enabled)
+                    firingTrace.Event(actor, "order-result", "requested=" + job?.def?.defName + " accepted=" + (actor.CurJob == job)
+                        + " current=" + actor.CurJob?.def?.defName);
+                firingTrace.Observe(actor, ownedJob);
             }
         }
         bool NativePassable(IntVec3 cell)
@@ -391,6 +451,13 @@ namespace RimFront
 
     internal static class NativeTriggerPolicy
     {
+        internal static bool IsStaleInput(double ageMilliseconds) => ageMilliseconds > 350;
+        internal static bool Pressed(bool held, bool previouslyHeld, ref bool suppressNextEdge)
+        {
+            bool pressed = held && !previouslyHeld && !suppressNextEdge;
+            suppressNextEdge = false;
+            return pressed;
+        }
         internal static bool AllowInput(bool physicallyHeld, bool paused, ref bool requireRelease)
         {
             if (paused && physicallyHeld) requireRelease = true;

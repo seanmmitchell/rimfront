@@ -1,10 +1,10 @@
-# Compatibility and verification — 0.6.1
+# Compatibility and verification — 0.6.2
 
-Updated 2026-10-17. **Both 0.6.1 builds and all 95,887 automated checks passed.** No live 0.6.1 gameplay or GPU validation is recorded here. Compilation, metadata inspection and standalone helper tests do not certify native camera behavior, patch coexistence, combat outcomes or performance.
+Updated 2026-10-17. **Both 0.6.2 builds and all 95,963 automated checks passed.** No live 0.6.2 gameplay or GPU validation is recorded here. Compilation, metadata inspection and standalone helper tests do not certify native camera behavior, patch coexistence, combat outcomes or performance.
 
 ## Target matrix
 
-| Target | Build boundary | 0.6.1 live status |
+| Target | Build boundary | 0.6.2 live status |
 | --- | --- | --- |
 | RimWorld 1.6 | Pinned `Krafs.Rimworld.Ref` 1.6.4871, `Lib.Harmony` 2.4.2, .NET Framework 4.7.2 | Not validated |
 | RimWorld 1.7 | Installed game/Harmony, UnityStubs/Waylith references, .NET 10 | Not validated |
@@ -15,6 +15,10 @@ Updated 2026-10-17. **Both 0.6.1 builds and all 95,887 automated checks passed.*
 The inspected 1.7 installation was 1.7.4981 on the unstable branch. Its APIs may change. An upstream CE source revision advertised 1.6; source inspection alone does not establish a supported 1.7 release. Validate the exact game, Harmony, CE and mod combination you install.
 
 ## Evidence and its limits
+
+Version 0.6.2 passed 81,869 pawn/model/animation/combat/vegetation/diagnostic checks, 11,126 movement checks, 2,803 geometry/lighting/weather/weapon/effect checks, 95 job-policy checks, 20 window-icon checks, 40 native input/aim checks and 10 package contract checks. Both builds passed; 1.6 retained NU1900 for unavailable audit metadata and 1.7 built without warnings. Logs: `work/runtime-test/build-0.6.2.log` and `tests-0.6.2.log`. New sequence regressions cover stale recovery in Auto/Fixed/Semi-auto/Burst, pause/mode gates, and trace opt-out, input correlation, deduplication and output limits. Live sustained fire, reload and trace reproduction remain pending.
+
+Inspection found that the previous stale-input path armed a persistent physical-release gate after a frame gap over 350 ms. Fresh held Auto input could never resume until the mouse was released. Version 0.6.2 replaces that stale-only gate with one-sample press suppression, retaining explicit pause/mode-switch gates. The user's 0.6.1 session log contains no firing exception or input-age evidence identifying the particular reported stop. Optional `[RimFront:Fire]` diagnostics record sampled input transitions and subsequent actions to distinguish other causes; they are not a complete OS input stream or a guarantee of logging every projectile between observations.
 
 Version 0.6.1 passed 81,793 pawn/model/animation/combat/vegetation checks, 11,126 movement checks, 2,803 geometry/lighting/weather/weapon/effect checks, 95 job-policy checks, 20 window-icon checks, 40 native input/aim checks and 10 package contract checks. Both builds passed; 1.6 retained NU1900 for unavailable audit metadata and 1.7 built without warnings. Logs: `work/runtime-test/build-0.6.1.log` and `tests-0.6.1.log`.
 

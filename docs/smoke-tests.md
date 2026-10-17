@@ -1,6 +1,6 @@
-# Native smoke checklist — 0.6.1
+# Native smoke checklist — 0.6.2
 
-These are required live checks, **not recorded passes**. Close RimWorld, install the extracted 0.6.1 package, restart and use a disposable colony. Run on both 1.6 and 1.7, first with Harmony/Core and then an appropriate CE build. Record exact versions, mod list, hardware, Player.log, expected/actual results and reproduction steps.
+These are required live checks, **not recorded passes**. Close RimWorld, install the extracted 0.6.2 package, restart and use a disposable colony. Run on both 1.6 and 1.7, first with Harmony/Core and then an appropriate CE build. Record exact versions, mod list, hardware, Player.log, expected/actual results and reproduction steps.
 
 ## Package, input and lifecycle
 
@@ -10,7 +10,9 @@ These are required live checks, **not recorded passes**. Close RimWorld, install
 | Eligibility | Select drafted/undrafted, hostile, nonhuman and downed pawns | Entry offered only for eligible drafted player humanlikes |
 | Entry and initial click | Choose Play in RimFront, then release and press LMB | Perspective view enters inside the game; entry click never attacks |
 | Input ownership | Look, move and use F/R/Space | Native controls work without colony shortcuts, gizmos or stock camera handling interfering |
-| Pause/stale trigger | Hold LMB across pause/resume; click while paused; interrupt updates beyond stale-input threshold | No fabricated new press; release/repress rearms firing; paused mode presses are discarded |
+| Pause trigger | Hold LMB across pause/resume; click while paused | No fabricated new press; release/repress rearms firing; paused mode presses are discarded |
+| Slow-frame recovery | Hold LMB in Auto/Fixed through a delay over 350 ms, then repeat in Semi-auto/Burst | Stale tick cancels the old attack; Auto/Fixed resumes on fresh held input; Semi-auto/Burst receives no synthetic click and waits for release/repress; pause/mode-switch release gates still apply |
+| Firing trace | Enable Diagnostics → Trace firing input and actions; tap/hold/release, pause, change modes, reload and run empty; disable and reenter | Player.log connects observed input transitions to accepted/blocked triggers and subsequent actions with weapon/mode/ammo context; repeated failures are bounded, no per-frame held-input spam, disabling stops trace entries; gameplay is unchanged |
 | Focus/dialog/exit | Alt-Tab, open a blocking dialog or Escape during movement, aim, burst and pause | Control releases; camera/cursor/subcamera/background/fire-at-will settings restore; no remaining owned burst fires |
 | Windows icon | Compare taskbar icon before/after entry, exit and focus loss | Existing game icon remains intact; no blank/default icon |
 | Pawn/map lifecycle | Undraft, down, kill, mental-break, despawn or change maps | Safe release without stale jobs or hooks affecting another pawn |

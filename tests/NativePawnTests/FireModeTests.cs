@@ -106,8 +106,59 @@ internal static partial class Program
         Check(!Input(true, true) && gated && !Input(false, true) && !gated,
             "a click completed entirely while paused is discarded and release clears the gate");
         Check(!Input(false, false) && Input(true, false), "resuming after a completed paused click waits for a genuinely new press");
-        gated = true; // Production stale-input cleanup deliberately arms this gate.
-        Check(!Input(true, false) && gated && !Input(true, false), "held trigger after stale input cannot restart firing merely because accepted-input history was cleared");
-        Check(!Input(false, false) && !gated && Input(true, false), "physical release and repress restore input after a stale-input stop");
+        MethodInfo stale = assembly.GetType("RimFront.NativeTriggerPolicy", true).GetMethod("IsStaleInput", Flags);
+        MethodInfo pressed = assembly.GetType("RimFront.NativeTriggerPolicy", true).GetMethod("Pressed", Flags);
+        Check(!(bool)stale.Invoke(null, new object[] { 350d })
+            && (bool)stale.Invoke(null, new object[] { 350.01d }), "input expires only after the actual 350 ms sampling deadline");
+        foreach (string mode in new[] { "AutoFire", "Fixed", "SingleFire", "BurstFire" })
+        {
+            bool requires = (bool)press.Invoke(null, new object[] { mode });
+            bool previousHeld = false, suppress = false, pending = false;
+            gated = false;
+            bool Sample(bool physical, bool paused = false)
+            {
+                bool held = Input(physical, paused);
+                object[] edge = { held, previousHeld, suppress };
+                bool rising = (bool)pressed.Invoke(null, edge); suppress = (bool)edge[2];
+                pending = paused ? false : pending || rising;
+                previousHeld = held;
+                return !paused && (bool)start.Invoke(null, new object[] { held, pending, requires });
+            }
+            void InterruptIfStale(double age)
+            {
+                if (!(bool)stale.Invoke(null, new object[] { age })) return;
+                // The real stale path cancels the attack and clears stored input/actions.
+                previousHeld = pending = false;
+                suppress = true;
+            }
+            Check(Sample(true), mode + ": initial genuine press starts the attack");
+            pending = false; // Native attack consumed this press.
+            InterruptIfStale(350d);
+            Check(!suppress && previousHeld, mode + ": deadline boundary retains the sampled held state");
+            InterruptIfStale(351d);
+            InterruptIfStale(700d);
+            Check(suppress && !pending && !gated, mode + ": repeated stale cleanup clears actions without creating a physical-release latch");
+            Check(Sample(true) == !requires && !pending && !suppress,
+                mode + ": first fresh held sample resumes Auto but cannot fabricate a semi-auto/burst press");
+            Check(Sample(true) == !requires && !pending,
+                mode + ": later held frames preserve the selected mode's cadence after recovery");
+            Check(!Sample(false) && Sample(true) && pending,
+                mode + ": a real observed release/repress works after stale recovery");
+            pending = false;
+            InterruptIfStale(351d);
+            Check(!Sample(false) && !suppress && Sample(true),
+                mode + ": a first fresh released sample consumes suppression and allows the following real click");
+            pending = false;
+            InterruptIfStale(351d);
+            Check(!Sample(true, true) && gated && !Sample(true),
+                mode + ": paused recovery retains the deliberate physical-release requirement");
+            Check(!Sample(false) && Sample(true), mode + ": release/repress rearms after paused recovery");
+            pending = false;
+            gated = true; // Successful mode cycling explicitly requires release while held.
+            InterruptIfStale(351d);
+            Check(!Sample(true) && gated && !pending && !Sample(true),
+                mode + ": a hitch cannot bypass the explicit fire-mode-change release gate");
+            Check(!Sample(false) && Sample(true), mode + ": mode-change recovery accepts a genuinely new press");
+        }
     }
 }

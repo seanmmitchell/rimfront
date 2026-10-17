@@ -1,4 +1,4 @@
-# Native architecture — 0.6.1
+# Native architecture — 0.6.2
 
 RimFront runs input, presentation and game integration inside the RimWorld process.
 
@@ -19,6 +19,10 @@ NativeView input -> RimFrontGame -> native movement / attack / reload jobs
 `RimFrontGame` validates the controlled pawn, consumes frame input on game ticks and owns only its exact jobs. Automatic one-tick posture waits, reloads and verified automatic setup of the equipped CE bipod are compatible transitions. External incompatible orders, focus/modal interruptions and pawn/map lifecycle changes release control. Mode switching clears pending fire, preserves cooldown and requires physical trigger release. Successful non-bursting attack completion preserves CE repeat-shot state; interruption resets the exact owned verb before clearing manual geometry. Possession is never serialized.
 
 ## Movement and targeting
+
+Input older than 350 ms cancels owned movement/attacks and clears pending actions. The first fresh sample restores held Auto/Fixed input while suppressing a synthetic press for Semi-auto/Burst. Explicit pause/mode-change release gates remain. Input timestamps are captured before scene drawing; slow rendering cannot relabel an old sample as fresh.
+
+Optional firing diagnostics observe physical input transitions, accepted trigger state and subsequent native action transitions. Diagnostics are disabled by default, isolate their failures from gameplay, and bound repeated output. They do not change simulation timing, fire policy or weapon state.
 
 `AnalogMovement` owns continuous XZ coordinates only for the controlled pawn. Native cost/payment determines speed. `AnalogCollision` sweeps a conservative square footprint, slides at contact and reserves float-safe separation; only rounding-scale overlaps can be repaired. Native cell setters and callbacks handle movement bookkeeping. Foreign paths and teleports reconcile or release ownership. Unsupported CE contracts or oversized footprints select native path fallback.
 

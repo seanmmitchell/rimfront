@@ -1,6 +1,6 @@
-# Native performance guide — 0.6.1
+# Native performance guide — 0.6.2
 
-RimFront captures input each frame and consumes it on game ticks. Rendering, mesh creation, collision queries and game simulation share the process. Bounded work limits worst-case growth; it does not establish live FPS or eliminate all latency. No 0.6.1 frame-time improvement is claimed.
+RimFront captures input each frame and consumes it on game ticks. Rendering, mesh creation, collision queries and game simulation share the process. Bounded work limits worst-case growth; it does not establish live FPS or eliminate all latency. No 0.6.2 frame-time improvement is claimed.
 
 ## Main budgets
 

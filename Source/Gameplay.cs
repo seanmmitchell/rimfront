@@ -309,6 +309,9 @@ namespace RimFront
                 bool moving = Math.Abs(input.forward) + Math.Abs(input.strafe) >= .1f;
                 if (moving && (input.fire || pendingFire))
                     firingTrace.Event(pawn, "trigger-blocked-movement", "Fire input present; native firing waits for movement to stop.");
+                // Movement cancels queued clicks even while a native reload/busy
+                // stance owns the pawn. Do this before that path returns below.
+                if (moving) pendingFire = false;
                 if (pawn.CurJob == ownedJob && ownedJob?.def == JobDefOf.AttackStatic)
                 {
                     Verb verb = ownedJob.verbToUse;
@@ -366,7 +369,6 @@ namespace RimFront
                     return;
                 }
                 float forward = input.forward, strafe = input.strafe;
-                if (moving) pendingFire = false;
                 if (AnalogMovement.Active)
                 {
                     AnalogMovement.Tick(input.yaw, forward, strafe);

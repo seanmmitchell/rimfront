@@ -53,4 +53,10 @@ Native view suppresses stock flat map/dynamic drawing. Arbitrary motes, custom s
 
 ## Release gate
 
+Development after 0.6.2 adds a source-linked production-controller firing-loop suite. Its scenarios drive actual frame/tick and reload/cleanup logic with simulated native weapon timing and ammunition. A new movement-during-reload scenario first failed against the released controller, exposing a queued click that could fire after movement stopped; the fix clears queued intent before the reload/busy early return. These changes are for the next release, not evidence that the installed 0.6.2 package contains that fix.
+
+On 2026-10-17, all 27 fixed-controller scenarios passed and all six deliberately broken variants compiled and failed their designated scenarios. Both native targets also compiled; 1.6 retained the unavailable-audit-metadata warning and 1.7 was warning-free. This establishes controller coverage against the declared fixture, not a live CE pass. Development evidence is in `work/runtime-test/firing-loop-red-movement.jsonl`, `build-firing-loop-tests.log`, `tests-firing-loop-final.log`, and the per-run `.build/firing-loop/` JSON/build logs.
+
+Run `scripts/verify-release.ps1` to build both targets, run the existing suites plus the firing-loop scenarios and six deliberate regression variants, then package only on success. A variant must compile and fail its designated behavior scenario. Report scenario outcomes separately from geometry/helper assertion totals. The [suite documentation](https://github.com/seanmmitchell/rimfront/blob/main/tests/FiringLoopTests/README.md) explains its simulated boundaries; native CE/Harmony and live input behavior remain outside that harness.
+
 Run the [smoke checklist](smoke-tests.md) on 1.6 and 1.7, with and without appropriate CE builds. Include actual M60 setup/reload and multiple held-Auto cycles, not only entry/exit. Record game/mod versions, hardware, logs and failures. Measure live frame times using [performance.md](performance.md). Until those checks pass, describe RimFront as experimental, not universally compatible or a proven lag fix.

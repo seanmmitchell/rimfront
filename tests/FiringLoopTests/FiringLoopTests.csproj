@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <UseAppHost>false</UseAppHost>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GameplaySource Condition="'$(GameplaySource)' == ''">../../Source/Gameplay.cs</GameplaySource>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="EngineFixture.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="$(GameplaySource)" Link="Production/Gameplay.cs" />
+    <Compile Include="../../Source/NativeInput.cs" Link="Production/NativeInput.cs" />
+    <Compile Include="../../Source/NativeJobPolicy.cs" Link="Production/NativeJobPolicy.cs" />
+  </ItemGroup>
+</Project>

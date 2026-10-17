@@ -2,6 +2,8 @@
 
 These are required live checks, **not recorded passes**. Close RimWorld, install the extracted 0.6.2 package, restart and use a disposable colony. Run on both 1.6 and 1.7, first with Harmony/Core and then an appropriate CE build. Record exact versions, mod list, hardware, Player.log, expected/actual results and reproduction steps.
 
+Before packaging a new release, run `scripts/verify-release.ps1`. Its firing-loop gate drives the production controller with simulated engine timing/ammo and must reject six deliberately restored regressions. Record the named scenario and mutation results separately from helper assertion totals. The following live checks still cover native CE, Harmony binding and input/rendering behavior that the simulated boundary cannot certify.
+
 ## Package, input and lifecycle
 
 | Case | Action | Expected result |

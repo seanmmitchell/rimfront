@@ -31,16 +31,5 @@ namespace RimFront
             return near <= far;
         }
 
-        internal static bool Intersects(double yaw, double pitch, double offsetX, double offsetZ,
-            double eyeHeight, double targetHeight, double halfWidth, out double ahead)
-        {
-            ahead = offsetX * Math.Sin(yaw) + offsetZ * Math.Cos(yaw);
-            if (double.IsNaN(ahead) || double.IsInfinity(ahead) || ahead <= 0 ||
-                double.IsNaN(pitch) || double.IsInfinity(pitch) || Math.Abs(pitch) >= Math.PI / 2 ||
-                targetHeight < .04 || halfWidth <= 0) return false;
-            double sideways = Math.Abs(offsetX * Math.Cos(yaw) - offsetZ * Math.Sin(yaw));
-            double height = eyeHeight - Math.Tan(pitch) * ahead;
-            return sideways <= halfWidth && height >= .04 && height <= targetHeight;
-        }
     }
 }

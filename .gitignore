@@ -3,7 +3,6 @@
 **/.build/
 mod/1.6/Assemblies/*
 mod/1.7/Assemblies/*
-mod/Client/
 mod/docs/
 mod/README.md
 mod/LICENSE

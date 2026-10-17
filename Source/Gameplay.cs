@@ -44,8 +44,6 @@ namespace RimFront
         {
             if (!CanControl(candidate)) return;
             Active?.Release("Control transferred.");
-            // Stop any old development bridge. Native play never starts a network listener.
-            BridgeServer.Stop();
             pawn = candidate;
             controlledMap = candidate.Map;
             oldFireAtWill = candidate.drafter.FireAtWill;
@@ -424,7 +422,6 @@ namespace RimFront
             NativePawnAnimation.Dispose();
             NativeTargetIndicators.Dispose();
             NativeShieldEffects.Dispose();
-            BridgeServer.Stop();
         }
     }
 }

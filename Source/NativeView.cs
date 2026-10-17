@@ -22,7 +22,6 @@ namespace RimFront
         static CursorLockMode oldCursorLock;
         static readonly List<Camera> disabledSubcameras = new List<Camera>();
         static float yaw, pitch;
-        static int sequence;
         static int consumeEscapeThroughFrame = -1;
         static bool requestRelease, waitForInitialMouseUp;
         static float nextHudRefresh;
@@ -58,7 +57,6 @@ namespace RimFront
             NativeShieldEffects.BeginViewSession();
             yaw = controlled.Rotation.AsAngle;
             pitch = 0f;
-            sequence = 0;
             requestRelease = false;
             waitForInitialMouseUp = true;
             nextHudRefresh = 0f;
@@ -148,7 +146,7 @@ namespace RimFront
             if (escape) consumeEscapeThroughFrame = Time.frameCount + 2;
             bool release = escape || !Application.isFocused
                 || !pawn.Spawned || pawn.Dead || pawn.Downed || !pawn.Drafted || pawn.Map != Find.CurrentMap || ModalOpen();
-            if (release) return new InputCommand { action = "release", seq = ++sequence, pawnId = pawn.thingIDNumber };
+            if (release) return new InputCommand { action = "release" };
             if (Input.GetKeyDown(KeyCode.Space)) Find.TickManager.TogglePaused();
 #if RW17
             // Waylith's verified Input shim exposes raw pixel deltas rather than Unity's axes.
@@ -165,7 +163,7 @@ namespace RimFront
             bool paused = Find.TickManager.Paused;
             return new InputCommand
             {
-                action = "input", seq = ++sequence, pawnId = pawn.thingIDNumber, yaw = Yaw, pitch = pitch * Mathf.Deg2Rad,
+                action = "input", yaw = Yaw, pitch = pitch * Mathf.Deg2Rad,
                 forward = paused ? 0 : (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f),
                 strafe = paused ? 0 : (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f),
                 fire = !paused && !waitForInitialMouseUp && Input.GetMouseButton(0),

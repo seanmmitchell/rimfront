@@ -14,7 +14,8 @@ namespace RimFront
             Settings = GetSettings<RimFrontSettings>();
             new Harmony("rimfront.nativefps").PatchAll(typeof(RimFrontMod).Assembly);
             NativeManualAim.Initialize();
-            Log.Message("[RimFront] Native 3D renderer loaded; Harmony hooks installed. Version 0.5.8.");
+            Log.Message("[RimFront] Native 3D renderer loaded; Harmony hooks installed. Version "
+                + typeof(RimFrontMod).Assembly.GetName().Version.ToString(3) + ".");
         }
         public override string SettingsCategory() => "RimFront";
         public override void DoSettingsWindowContents(Rect inRect) => Settings.Draw(inRect);

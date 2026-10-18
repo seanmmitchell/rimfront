@@ -2,6 +2,8 @@
 param([string]$Dotnet = 'dotnet', [string]$RimWorld17Dir = $env:RIMWORLD_17_DIR, [string]$Harmony17Dir = $env:HARMONY_17_DIR)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
+& $Dotnet run --project (Join-Path $projectRoot 'tests/PawnSpriteTests/PawnSpriteTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
+if ($LASTEXITCODE -ne 0) { throw "Pawn sprite tests failed ($LASTEXITCODE)." }
 & (Join-Path $PSScriptRoot 'test-firing-loop.ps1') -Dotnet $Dotnet -VerifyMutations
 & $Dotnet run --project (Join-Path $projectRoot 'tests/JobPolicyTests/JobPolicyTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
 if ($LASTEXITCODE -ne 0) { throw "Job policy tests failed ($LASTEXITCODE)." }

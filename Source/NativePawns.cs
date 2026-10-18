@@ -289,6 +289,11 @@ namespace RimFront
 
         internal static void Draw(Pawn pawn, Vector3 position, float distanceSquared, bool corpse = false)
         {
+            if ((RimFrontMod.Settings?.spritePawns ?? false) && NativePawnSprites.TryDraw(pawn, position, corpse))
+            {
+                RecordLod(pawn.thingIDNumber, false, Time.frameCount);
+                return;
+            }
             Model model = GetModel(pawn);
             NativePawnAnimation.Snapshot animation = NativePawnAnimation.Sample(pawn);
             bool lying = corpse || animation.Lying;
@@ -349,6 +354,7 @@ namespace RimFront
             models.Clear(); fallbacks.Clear(); Destroy(material); material = null;
             ClearAimCache();
             rebuilds = partBuilds = detailed = 0; warned = false;
+            NativePawnSprites.Dispose();
             NativePawnAnimation.Dispose();
             NativePawnEquipment.Dispose();
         }

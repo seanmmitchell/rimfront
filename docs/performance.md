@@ -8,6 +8,7 @@ RimFront captures input each frame and consumes it on game ticks. Rendering, mes
 | --- | --- |
 | Static scene | 49 chunks of 12 × 12 cells; at most one missing-chunk build per frame |
 | Static refresh | Dirty notifications prioritize changes; one cached chunk checked every 100 ms; fallback full cycle about 4.9 seconds |
+| Resource piles | One piece per five units, capped at 18: at most 1,152 triangles for logs or 360 for ingots/blocks; static mesh rebuild only when the quantity signature changes |
 | Lighting | At most one cached chunk relit per frame; 16 temporary muzzle lights |
 | Pawn appearance | 64 cached appearances plus nine shared fallback families; two refresh attempts and one articulated-rig build per frame |
 | Pawn detail | Up to 16 articulated pawns within 14 cells; assembled models otherwise |

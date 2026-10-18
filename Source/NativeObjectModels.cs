@@ -6,11 +6,11 @@ using Verse;
 namespace RimFront
 {
     // Definition-family silhouettes. Unknown objects retain NativeScene's size-aware fallback.
-    internal static class NativeObjectModels
+    internal static partial class NativeObjectModels
     {
         internal enum Kind { None, Solar, Wind, Generator, Battery, Cooler, Heater, Research, Stove, Smelter, Machining,
-            Shelf, Storage, Comms, Pod, Medical, Fence, Trap, Sandbags, Monument, Mushroom, Cactus, Broadleaf,
-            Log, Metal, Stone, Component, Medicine, Meal, RawFood, Book, Clothing, Headwear }
+            Shelf, Storage, Comms, Pod, Medical, Fence, Trap, Sandbags, Barricade, Embrasure, Monument, Mushroom, Cactus, Broadleaf,
+            Log, Metal, Stone, Chunk, Component, Medicine, Meal, RawFood, Book, Clothing, Headwear }
         static readonly Color Steel = new Color(.36f,.42f,.43f), Dark = new Color(.13f,.18f,.20f), Glass = new Color(.25f,.55f,.63f);
         internal static Kind Classify(string definition, bool building, bool plant, bool tree, bool apparel, bool ingestible)
         {
@@ -25,6 +25,10 @@ namespace RimFront
             if (apparel) return n.Contains("helmet")||n.Contains("hat")||n.Contains("hood")||n.Contains("mask")||n.EndsWith("cap",StringComparison.Ordinal)?Kind.Headwear:Kind.Clothing;
             if (building)
             {
+                // Cover names must win over generic storage/machining/fence families.
+                if(n.Contains("embrasure"))return Kind.Embrasure;
+                if(n.Contains("barricade"))return Kind.Barricade;
+                if(n.Contains("sandbag"))return Kind.Sandbags;
                 if(n.Contains("solar"))return Kind.Solar;
                 if(n.Contains("windturbine"))return Kind.Wind;
                 if(n.Contains("generator")||n.Contains("geothermal")||n.Contains("reactor"))return Kind.Generator;
@@ -42,13 +46,13 @@ namespace RimFront
                 if(n.Contains("vitals")||n.Contains("medical")||n.Contains("hospital"))return n.Contains("bed")?Kind.None:Kind.Medical;
                 if(n.Contains("fence"))return Kind.Fence;
                 if(n.Contains("trap"))return Kind.Trap;
-                if(n.Contains("sandbag")||n.Contains("barricade"))return Kind.Sandbags;
                 if(n.Contains("sculpture")||n.Contains("statue")||n.Contains("altar"))return Kind.Monument;
                 return Kind.None;
             }
             if(n.Contains("woodlog")||n=="wood")return Kind.Log;
             if(n.Contains("steel")||n.Contains("plasteel")||n.Contains("silver")||n.Contains("gold"))return Kind.Metal;
-            if(n.Contains("chunk")||n.Contains("blocks"))return Kind.Stone;
+            if(n.Contains("chunk"))return Kind.Chunk;
+            if(n.Contains("blocks"))return Kind.Stone;
             if(n.Contains("component")||n.Contains("chip"))return Kind.Component;
             if(n.Contains("medicine")||n.Contains("medkit"))return Kind.Medicine;
             if(n.Contains("meal"))return Kind.Meal;
@@ -75,10 +79,11 @@ namespace RimFront
             return true;
         }
 
-        internal static int ResourceStackCount(int count) => Math.Min(4, 1 + Math.Max(0, count) / 25);
+        // One visible piece per five units, capped for dense/modded stockpiles.
+        internal static int ResourceStackCount(int count) => count <= 0 ? 0 : Math.Min(18, 1 + (count - 1) / 5);
         // Include both the generic pile height and specialized resource piece count.
         // A dirty notification alone cannot rebuild a mesh with an unchanged signature.
-        internal static int ItemStackSignature(int count) => (Math.Min(4, Math.Max(0, count) / 20) << 3) | ResourceStackCount(count);
+        internal static int ItemStackSignature(int count) => (Math.Min(4, Math.Max(0, count) / 20) << 5) | ResourceStackCount(count);
 
         internal static void Build(NativeScene.Builder b, Kind kind, float w, float d, float growth, Color tint, int count)
         {
@@ -140,6 +145,10 @@ namespace RimFront
                     for(int x=-1;x<=1;x++)for(int z=-1;z<=1;z++)b.Pyramid(new Vector3(x*w*.22f,.12f,z*d*.22f),.12f,.45f,Steel);break;
                 case Kind.Sandbags:
                     for(int row=0;row<3;row++)for(int i=0;i<3;i++)Box(b,(i-1)*w*.29f+(row%2)*w*.045f,.13f+row*.20f,0,w*.31f,.21f,d*.73f,new Color(.54f,.48f,.31f));break;
+                case Kind.Barricade:
+                    AddBarricade(b,w,d,tint);break;
+                case Kind.Embrasure:
+                    AddEmbrasure(b,w,d,tint);break;
                 case Kind.Monument:
                     Box(b,0,.18f,0,w*.82f,.36f,d*.82f,tint);b.Pyramid(new Vector3(0,.36f,0),Math.Min(w,d)*.58f,1.35f,tint);
                     Box(b,0,1.74f,0,.30f,.30f,.30f,tint);break;
@@ -155,9 +164,13 @@ namespace RimFront
                     Box(b,0,2.05f*growth,0,1.25f*growth,.88f*growth,1.25f*growth,tint);
                     b.Pyramid(new Vector3(0,2.49f*growth,0),1.35f*growth,.60f*growth,tint);break;
                 case Kind.Log:
-                    for(int i=0;i<ResourceStackCount(count);i++)Box(b,(i%2-.5f)*.19f,.10f+(i/2)*.16f,0,.17f,.16f,.72f,wood);break;
-                case Kind.Metal:case Kind.Stone:
-                    for(int i=0;i<ResourceStackCount(count);i++)Box(b,(i%2-.5f)*.22f,.09f+(i/2)*.15f,0,.20f,.14f,.38f,kind==Kind.Metal?Steel:tint);break;
+                    AddLogs(b,ResourceStackCount(count));break;
+                case Kind.Metal:
+                    AddIngots(b,ResourceStackCount(count),tint);break;
+                case Kind.Stone:
+                    AddBlocks(b,ResourceStackCount(count),tint);break;
+                case Kind.Chunk:
+                    AddChunk(b,tint);break;
                 case Kind.Component:
                     Box(b,0,.07f,0,.40f,.14f,.32f,Dark);Box(b,0,.15f,0,.27f,.025f,.22f,green);
                     for(int i=0;i<3;i++)Box(b,(i-1)*.08f,.18f,0,.04f,.05f,.12f,Steel);break;

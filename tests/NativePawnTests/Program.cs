@@ -38,6 +38,7 @@ internal static partial class Program
             TestAppearance();
             TestAnimation(assembly);
             TestObjects(assembly);
+            TestCoverAndResourceModels(assembly);
             TestOutfitsAndPoses(assembly,unity);
             TestEquipmentAttachments(assembly,unity);
             TestShieldEffects(assembly);
@@ -245,8 +246,6 @@ internal static partial class Program
                 build.Invoke(null,new[]{mesh,Enum.Parse(kind,resource),(object)1f,1f,1f,Tint(.5f,.5f,.5f),count});
                 int vertices=Vectors(mesh,"Vertices").Count,stamp=(int)signature.Invoke(null,new object[]{count});
                 if(count>1)Check(vertices==previousVertices||stamp!=previousSignature,"resource geometry changes invalidate cached mesh: "+resource+" count "+count);
-                if(count==24||count==25||count==49||count==50||count==74||count==75)
-                    Check(vertices==24*Math.Min(4,1+count/25),"resource threshold geometry matches quantity: "+resource+" count "+count);
                 previousVertices=vertices;previousSignature=stamp;
             }
         }

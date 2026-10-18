@@ -42,7 +42,10 @@ For vegetation, orbit trees and bushes at several heights and distances: cards r
 | Doors | Approach closed/open doors; stop partly through a doorway; test fence gates | Waits for fully open doors; closure waits for body clearance; moving leaves have no permanent static rails |
 | Native stagger | Apply stagger and compare travel | Native payment slowdown remains effective; no speed exploit |
 | CE coordinates | Shoot and receive fire near cell boundaries; move laterally while another pawn aims | Origins, visible body, collision queries and lead agree with continuous position |
-| Static geometry | Build/destroy walls, grow/harvest plants and change resource stacks across 25/50/75 | Geometry/signatures update within bounded refresh; aim and visible growth steps agree |
+| Static geometry | Build/destroy walls, grow/harvest plants and change resource stacks across 5/6, 25/26, 50/51 and 75/76; split and haul them | Geometry/signatures update within bounded refresh; aim and visible growth steps agree |
+| Cover models | Inspect wood/steel/stone barricades and CE embrasures, singly and in runs along both axes; repaint and rebuild them | Braced barricades stay waist-high; material tint is retained; embrasure ports remain open on all four sides; no full-wall fallback fills the ports |
+| Resource models | Compare wood, steel and each stone block at 1/25/50/75 units; inspect rough chunks separately | Logs show bark/cut ends, ingots show beveled shoulders, blocks form alternating courses; piles grow within one tile, up to 18 visible pieces; chunks stay distinct from manufactured blocks |
+| Embrasure targeting | Aim and fire a supported straight vanilla/CE ballistic shot through a port at standing height, then at the base, corner pier and lintel | Port selects geometry beyond it; solid frame remains targetable; record native accuracy/cover outcomes separately from the rendered opening |
 | Depth/fog/cache | Look vertically, approach walls, cross chunk borders and face fog | Perspective/depth are correct; no flat-map duplicates, missing near scenery or exposed hidden objects |
 | Render coexistence | Add other camera/visual/movement mods | Record conflicts and repeated errors; do not assume universal compatibility |
 

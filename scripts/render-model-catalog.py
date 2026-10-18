@@ -1,6 +1,8 @@
 """Render a review sheet from actual exported RimFront CPU model buffers.
 
 Requires Pillow and NumPy. This is an offline geometry inspection, not a game screenshot.
+Pass --row-scale to compare each row at a common scale and --cover-resources
+to select the cover and quantity examples from the object catalog export.
 """
 import json
 import math
@@ -12,8 +14,17 @@ import numpy as np
 
 def main():
     models = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    if "--cover-resources" in sys.argv[4:]:
+        names = ["Barricade / wood", "Barricade / steel", "Embrasure / stone", "Embrasure / steel"]
+        names += [f"{kind} / {count} {'unit' if count == 1 else 'units'}"
+                  for kind in ["Wood", "Steel", "Stone blocks"] for count in [1, 25, 50, 75]]
+        lookup = {model["Name"]: model for model in models}
+        models = [lookup[name] for name in names]
     output = Path(sys.argv[2])
     scale, columns, width, height = 2, 4, 330, 370
+    row_scale = "--row-scale" in sys.argv[4:]
+    projections = [[(.83 * x - .55 * z, .30 * x + .45 * z - y, .55 * x + .83 * z + .30 * y)
+                    for x, y, z in model["Vertices"]] for model in models]
     rows = math.ceil(len(models) / columns)
     image = Image.new("RGB", (columns * width * scale, (100 + rows * height) * scale), "#101924")
     draw = ImageDraw.Draw(image)
@@ -23,15 +34,17 @@ def main():
     title = ImageFont.truetype(str(font_path), 28 * scale) if font_path.exists() else font
     draw.text((24 * scale, 14 * scale), sys.argv[3] if len(sys.argv) > 3 else "RimFront 0.5 / pawn geometry catalog", fill="#e7f0f9", font=title)
     draw.text((24 * scale, 54 * scale), "Actual compiled CPU meshes and pose helpers • offline projection, not in-game rendering", fill="#9cb0c5", font=small)
-    draw.text((24 * scale, 74 * scale), "Each cell fits its mesh independently; runtime scale, motion and lighting are not shown.", fill="#9cb0c5", font=small)
+    scale_note = "Each row shares one scale and ground origin; quantities can be compared. Runtime lighting is not shown." if row_scale else "Each cell fits its mesh independently; runtime scale, motion and lighting are not shown."
+    draw.text((24 * scale, 74 * scale), scale_note, fill="#9cb0c5", font=small)
     for index, model in enumerate(models):
         ox, oy = (index % columns) * width, 100 + (index // columns) * height
         draw.rounded_rectangle((ox * scale + 8, oy * scale + 4, (ox + width) * scale - 8, (oy + height) * scale - 12), radius=14, fill="#1b2939", outline="#33485d", width=2)
         draw.text(((ox + 16) * scale, (oy + 12) * scale), model["Name"], font=font, fill="#e7f0f9")
         vertices, colors, indices = model["Vertices"], model["Colors"], model["Triangles"]
-        projected = [(.83 * x - .55 * z, .30 * x + .45 * z - y, .55 * x + .83 * z + .30 * y) for x, y, z in vertices]
-        lo_x, hi_x = min(p[0] for p in projected), max(p[0] for p in projected)
-        lo_y, hi_y = min(p[1] for p in projected), max(p[1] for p in projected)
+        projected = projections[index]
+        extent = [point for projection in projections[index // columns * columns:(index // columns + 1) * columns] for point in projection] if row_scale else projected
+        lo_x, hi_x = min(p[0] for p in extent), max(p[0] for p in extent)
+        lo_y, hi_y = min(p[1] for p in extent), max(p[1] for p in extent)
         factor = min(270 / max(.01, hi_x - lo_x), 265 / max(.01, hi_y - lo_y))
         center_x, center_y = (lo_x + hi_x) / 2, (lo_y + hi_y) / 2
         # Orthographic CPU depth buffer: triangle sorting alone misrenders intersecting apparel.

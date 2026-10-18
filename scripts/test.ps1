@@ -5,6 +5,9 @@ $projectRoot = Split-Path $PSScriptRoot -Parent
 & $Dotnet run --project (Join-Path $projectRoot 'tests/PawnSpriteTests/PawnSpriteTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
 if ($LASTEXITCODE -ne 0) { throw "Pawn sprite tests failed ($LASTEXITCODE)." }
 & (Join-Path $PSScriptRoot 'test-firing-loop.ps1') -Dotnet $Dotnet -VerifyMutations
+& (Join-Path $PSScriptRoot 'test-terrain-integration.ps1') -Dotnet $Dotnet -VerifyMutations
+& $Dotnet run --project (Join-Path $projectRoot 'tests/TerrainTests/TerrainTests.csproj') --configuration Release
+if ($LASTEXITCODE -ne 0) { throw "Terrain tests failed ($LASTEXITCODE)." }
 & $Dotnet run --project (Join-Path $projectRoot 'tests/MinimapTests/MinimapTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
 if ($LASTEXITCODE -ne 0) { throw "Minimap tests failed ($LASTEXITCODE)." }
 & $Dotnet run --project (Join-Path $projectRoot 'tests/JobPolicyTests/JobPolicyTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"

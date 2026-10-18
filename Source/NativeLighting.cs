@@ -43,6 +43,9 @@ namespace RimFront
         internal static Color Sample(Vector3 position)
         {
             if (map == null) return Color.white;
+            // Mountain exteriors and other surfaces above the native ceiling see sky.
+            // Cell fog and roof darkness still apply to the underground scene below.
+            if (position.y > 2.55f) return Compose(map.skyManager.CurSkyGlow, false, Color.black);
             int x = Mathf.Clamp(Mathf.FloorToInt(position.x), 0, map.Size.x - 1);
             int z = Mathf.Clamp(Mathf.FloorToInt(position.z), 0, map.Size.z - 1);
             int index = (x & (CacheSize - 1)) + (z & (CacheSize - 1)) * CacheSize;

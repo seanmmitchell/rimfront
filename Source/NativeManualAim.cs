@@ -78,7 +78,7 @@ namespace RimFront
         {
             if (pawn == null || current?.Pawn == pawn) current = null;
         }
-        internal static float SelectionRange(Verb verb) => Math.Min(30f, Math.Max(.1f, verb.EffectiveRange - .1f));
+        internal static float SelectionRange(Verb verb) => Math.Min(NativeScene.ViewDistance, Math.Max(.1f, verb.EffectiveRange - .1f));
         internal static bool Owns(object expectedPawn, object expectedVerb, object expectedJob,
             object pawn, object verb, object job, bool active, bool validation)
             => active && expectedPawn != null && expectedVerb != null && expectedJob != null

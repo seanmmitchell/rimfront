@@ -183,8 +183,7 @@ namespace RimFront
                             || !DeterministicWorld(thing, projectile)
                             || !segmentThings.Add(thing.thingIDNumber)) continue;
                         if (segmentThings.Count > MaximumSegmentThings) return null;
-                        Bounds coarse = NativeAimTargeting.CoarseBounds(thing.DrawPos, thing.def.size.x, thing.def.size.z,
-                            thing.Rotation.AsAngle, thing is Building ? 0 : thing is Plant ? 1 : 2);
+                        Bounds coarse = NativeAimTargeting.CoarseThingBounds(thing);
                         if (!(thing is Corpse) && (!NativeAimTargeting.RayBox(shot.SegmentStart, direction, coarse.min, coarse.max, out float entry)
                             || entry > closest)) continue;
                         bool eligible;

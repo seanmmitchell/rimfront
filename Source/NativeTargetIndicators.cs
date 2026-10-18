@@ -69,7 +69,7 @@ namespace RimFront
             {
                 Pawn pawn = nearby[i];
                 if (pawn == null || !pawn.Spawned || pawn.Dead || pawn.Map != map || pawn.Position.Fogged(map)
-                    || (pawn.DrawPos - observer.DrawPos).sqrMagnitude > 900f)
+                    || (pawn.DrawPos - observer.DrawPos).sqrMagnitude > NativeScene.ViewDistanceSquared)
                 { retained.Remove(pawn); nearby.RemoveAt(i); }
             }
             nearby.Sort(byDistance);
@@ -79,7 +79,7 @@ namespace RimFront
             {
                 Pawn candidate = pawns[cursor++];
                 if (candidate == observer || candidate.Dead || !candidate.Spawned || candidate.Position.Fogged(map)
-                    || retained.Contains(candidate) || (candidate.DrawPos - observer.DrawPos).sqrMagnitude > 900f) continue;
+                    || retained.Contains(candidate) || (candidate.DrawPos - observer.DrawPos).sqrMagnitude > NativeScene.ViewDistanceSquared) continue;
                 int index = nearby.BinarySearch(candidate, distanceComparer);
                 if (index < 0) index = ~index;
                 if (index >= MaximumScanned) continue;
@@ -106,7 +106,7 @@ namespace RimFront
                 foreach (Pawn pawn in nearby)
                 {
                     if (!pawn.Spawned || pawn.Dead || pawn.Map != map || pawn.Position.Fogged(map)
-                        || (pawn.DrawPos - controlled.DrawPos).sqrMagnitude > 900f) continue;
+                        || (pawn.DrawPos - controlled.DrawPos).sqrMagnitude > NativeScene.ViewDistanceSquared) continue;
                     Vector3 point = NativePawns.TargetPosition(pawn); point.y = NativePawns.TargetHeight(pawn) + .18f;
                     Vector3 screen = Find.Camera.WorldToScreenPoint(point);
                     if (!NativeEffectMath.IsFinite(screen) || screen.z <= 0) continue;

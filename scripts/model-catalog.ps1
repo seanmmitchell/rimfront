@@ -17,5 +17,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Pawn geometry validation/export failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Catalog rendering failed. Python with Pillow and NumPy is required.' }
 & $Python (Join-Path $PSScriptRoot 'render-model-catalog.py') ([IO.Path]::ChangeExtension($geometry,'objects.json')) (Join-Path $projectRoot 'docs/object-catalog.png') 'RimFront 0.5 / object geometry catalog'
 if ($LASTEXITCODE -ne 0) { throw 'Object catalog rendering failed.' }
+& $Python (Join-Path $PSScriptRoot 'render-model-catalog.py') ([IO.Path]::ChangeExtension($geometry,'objects.json')) (Join-Path $projectRoot 'docs/cover-and-resource-models.png') 'RimFront / cover and resource piles' --row-scale --cover-resources
+if ($LASTEXITCODE -ne 0) { throw 'Cover and resource catalog rendering failed.' }
 & $Python (Join-Path $PSScriptRoot 'render-model-catalog.py') ([IO.Path]::ChangeExtension($geometry,'actions.json')) (Join-Path $projectRoot 'docs/action-catalog.png') 'RimFront 0.5 / outfits and body poses'
 if ($LASTEXITCODE -ne 0) { throw 'Action catalog rendering failed.' }

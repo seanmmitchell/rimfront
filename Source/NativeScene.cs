@@ -570,7 +570,7 @@ namespace RimFront
     [HarmonyPatch(typeof(MapDrawer), nameof(MapDrawer.DrawMapMesh))]
     internal static class NativeSceneSuppressFlatMap
     {
-        static bool Prefix() { return !NativeView.Active; }
+        static bool Prefix() { return !NativeView.Active || NativeMapRenderer.Rendering; }
     }
 
     [HarmonyPatch]

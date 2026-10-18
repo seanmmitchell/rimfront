@@ -40,7 +40,29 @@ static class Program
             Check(MinimapView.Frame(100, 100, true, 100, bad).Size == 50, "invalid aim Z falls back locally");
         }
         Check(MinimapView.Frame(100, 100, false, 220, 100).Size == 50, "lost aim returns to local view without retaining a stale target");
-        Console.WriteLine("PASS: " + checks + " minimap framing/projection checks (no live renderer)");
+        var state = new MinimapRenderState();
+        Check(!state.Active && state.View.Size == 0, "no native camera override outside a render pass");
+        for (int i = 0; i < 3; i++)
+        {
+            int draws = 0;
+            state.Run(east, () =>
+            {
+                draws++;
+                Check(state.Active && state.View.Size == east.Size && state.View.MinX == east.MinX,
+                    "all native camera/culling consumers see the same minimap frame");
+                bool rejected = false;
+                try { state.Run(local, () => draws += 100); }
+                catch (InvalidOperationException) { rejected = true; }
+                Check(rejected && state.Active && state.View.MinX == east.MinX,
+                    "nested rendering cannot steal or reset the active camera scope");
+            });
+            Check(draws == 1 && !state.Active && state.View.Size == 0, "one native pass restores camera ownership on completion");
+            var expected = new Exception("injected renderer failure");
+            try { state.Run(local, () => throw expected); }
+            catch (Exception actual) { Check(ReferenceEquals(actual, expected), "native render exception is preserved"); }
+            Check(!state.Active && state.View.Size == 0, "native render failure always clears the camera/culling override");
+        }
+        Console.WriteLine("PASS: " + checks + " minimap framing/projection and native render-scope checks (no GPU)");
     }
     static void Inside(MinimapView view, float x, float z, string scenario)
         => Check(view.X(x) >= -.00001f && view.X(x) <= 1.00001f && view.Y(z) >= -.00001f && view.Y(z) <= 1.00001f, scenario);

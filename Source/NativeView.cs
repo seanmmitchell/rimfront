@@ -288,7 +288,7 @@ namespace RimFront
     [HarmonyPatch(typeof(DynamicDrawManager), nameof(DynamicDrawManager.DrawDynamicThings))]
     internal static class NativeDynamicDrawOwnership
     {
-        static bool Prefix() => !NativeView.Active;
+        static bool Prefix() => !NativeView.Active || NativeMapRenderer.Rendering;
     }
 
     [HarmonyPatch(typeof(CameraDriver), nameof(CameraDriver.CurrentViewRect), MethodType.Getter)]
@@ -296,6 +296,7 @@ namespace RimFront
     {
         static bool Prefix(ref CellRect __result)
         {
+            if (NativeMapRenderer.Rendering) { __result = NativeMapRenderer.ViewRect(); return false; }
             if (!NativeView.Active) return true;
             __result = NativeView.ViewRect();
             return false;

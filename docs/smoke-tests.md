@@ -6,6 +6,10 @@ Before packaging a new release, run `scripts/verify-release.ps1`. Its firing-loo
 
 For the 0.6.3 reload fix, press R during warmup, burst, cooldown, and idle with a partly loaded magazine; repeat with no reserve ammunition and while holding/releasing fire. Include M60/bipod and a non-bipod gun. Verify the reload finishes in first-person view and Auto resumes only while held. Any unexpected job exit now writes one `[RimFront:Fire] event=unexpected-job` report with the recent 12 job starts even when optional tracing is off; retain that report with the log.
 
+## Optional 2D characters
+
+Enable **Use viewpoint-based 2D characters** in RimFront mod settings during possession, then disable it and reenter. Verify the setting persists after restart, 3D remains the default for existing settings, and switching is immediate. Walk around stationary/turning pawns: front, side and back must follow the observer with upright, correctly oriented artwork and no opaque atlas background. Check hats, layered apparel, injuries, animals, mechs, sleeping pawns in every bed rotation, downed pawns and corpses. Change apparel while the option is active and confirm native invalidation refreshes it. Verify perspective scale, lighting and wall/fog occlusion. Confirm indicators, shields, first-person hands, shooting/reload and exit still work. Check atlas warmup and unavailable atlas frames fall back to 3D and repeated entry/exit does not leak materials or destroy game-owned art. Sprite poses are static/sideways cards, equipment extras are omitted, and body geometry remains an approximate combat proxy rather than pixel-accurate sprite collision. Run these checks on both game branches; automated helpers do not certify GPU/atlas behavior.
+
 ## Package, input and lifecycle
 
 | Case | Action | Expected result |

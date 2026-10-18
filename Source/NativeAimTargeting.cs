@@ -11,7 +11,7 @@ namespace RimFront
     // accuracy, interception, damage, ammo and warmup. No faction or hostility filter.
     internal static class NativeAimTargeting
     {
-        internal const int MaximumCells = 1024, MaximumThings = 768, MaximumCached = MaximumThings, MaximumTriangles = 65536;
+        internal const int MaximumCells = 4096, MaximumThings = 3072, MaximumCached = MaximumThings, MaximumTriangles = 65536;
         internal struct TargetInfo
         {
             internal LocalTargetInfo Target;
@@ -46,8 +46,8 @@ namespace RimFront
             direction = Vector3.zero; limit = 0;
             if (!Finite(yaw) || !Finite(pitch) || !Finite(range) || range <= 0 || Math.Abs(pitch) >= Math.PI / 2 - .001) return false;
             direction = new Vector3(Mathf.Sin(yaw), -(float)Math.Tan(pitch), Mathf.Cos(yaw));
-            // The camera's far plane and scenery are bounded to thirty tiles.
-            limit = Math.Min(range, 30f * Mathf.Cos(pitch));
+            // Selection follows the camera range while retaining the native weapon limit.
+            limit = Math.Min(range, NativeScene.ViewDistance * Mathf.Cos(pitch));
             return Finite(direction) && limit > .001f;
         }
         internal static bool RayTriangle(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, Vector3 c, out float distance)
@@ -84,6 +84,7 @@ namespace RimFront
             unchecked
             {
                 int hash = thing.stackCount * 397 ^ thing.def.GetHashCode();
+                if (NativeMountains.IsRock(thing)) hash = hash * 31 + NativeMountains.GeometryRevision(thing);
                 if (thing is Plant plant) hash = hash * 31 + NativeScene.PlantGrowth(plant.Growth).GetHashCode();
                 // Stable open/closed leaves retain their geometry across render frames.
                 if (thing is Building_Door door) hash = hash * 31 + DoorSignature(DoorOpenPct == null ? (door.Open ? 1f : 0f) : (float)DoorOpenPct.GetValue(door, null));
@@ -109,10 +110,21 @@ namespace RimFront
             float bottom = category == 0 ? -.5f - Math.Min(20f, Math.Max(width, depth)) * .12f : -.5f;
             return new Bounds(new Vector3(position.x, (top + bottom) * .5f, position.z), new Vector3(halfX * 2, top - bottom, halfZ * 2));
         }
-        static bool CoarseHit(Thing thing, Vector3 eye, Vector3 direction, float nearest)
+        internal static Bounds CoarseThingBounds(Thing thing)
         {
             Bounds bounds = CoarseBounds(thing.DrawPos, thing.def.size.x, thing.def.size.z, thing.Rotation.AsAngle,
                 thing is Building ? 0 : thing is Plant ? 1 : 2);
+            if (NativeMountains.IsRock(thing))
+            {
+                Vector3 min = bounds.min, max = bounds.max;
+                max.y = MountainProfile.MaximumHeight;
+                bounds = new Bounds((min + max) * .5f, max - min);
+            }
+            return bounds;
+        }
+        static bool CoarseHit(Thing thing, Vector3 eye, Vector3 direction, float nearest)
+        {
+            Bounds bounds = CoarseThingBounds(thing);
             return RayBox(eye, direction, bounds.min, bounds.max, out float entry) && entry < nearest;
         }
         static Geometry GetGeometry(Thing thing)
@@ -157,7 +169,7 @@ namespace RimFront
         internal static bool TryHitThing(Thing thing, Vector3 eye, float yaw, float pitch, out double ahead)
         {
             ahead = 0;
-            if (thing == null || !thing.Spawned || !Finite(eye) || !Ray(yaw, pitch, 30f, out Vector3 direction, out float unused)) return false;
+            if (thing == null || !thing.Spawned || !Finite(eye) || !Ray(yaw, pitch, NativeScene.ViewDistance, out Vector3 direction, out float unused)) return false;
             if (!ReferenceEquals(cachedMap, thing.Map)) { Dispose(); cachedMap = thing.Map; }
             if (thing is Pawn pawn) return NativePawns.TryAimPawn(pawn, thing.DrawPos, false, eye, yaw, pitch, out ahead);
             if (thing is Corpse corpse && corpse.InnerPawn != null) return NativePawns.TryAimPawn(corpse.InnerPawn, thing.DrawPos, true, eye, yaw, pitch, out ahead);
@@ -195,7 +207,7 @@ namespace RimFront
                 if (!first.InBounds(map) || first.Fogged(map)) return false;
                 float nearest = limit + .0001f, boundary = limit;
                 Thing selected = null;
-                bool surface = false;
+                bool surface = false, hiddenExterior = false;
                 int triangleBudget = MaximumTriangles;
                 int x = first.x, z = first.z, stepX = direction.x >= 0 ? 1 : -1, stepZ = direction.z >= 0 ? 1 : -1;
                 float deltaX = Math.Abs(direction.x) < .0000001 ? float.PositiveInfinity : Math.Abs(1 / direction.x);
@@ -203,19 +215,25 @@ namespace RimFront
                 float nextX = float.IsInfinity(deltaX) ? deltaX : ((stepX > 0 ? x + 1 : x) - eye.x) / direction.x;
                 float nextZ = float.IsInfinity(deltaZ) ? deltaZ : ((stepZ > 0 ? z + 1 : z) - eye.z) / direction.z;
                 float entry = 0;
-                for (int segment = 0; segment < 64 && entry <= limit && entry <= nearest; segment++)
+                for (int segment = 0; segment < 256 && entry <= limit && entry <= nearest; segment++)
                 {
                     IntVec3 cell = new IntVec3(x, 0, z);
-                    if (!cell.InBounds(map) || cell.Fogged(map)) { boundary = Math.Max(0, entry - .002f); break; }
+                    if (!cell.InBounds(map)) { boundary = Math.Max(0, entry - .002f); break; }
+                    bool fogged = cell.Fogged(map);
                     float exit = Math.Min(limit, Math.Min(nextX, nextZ));
-                    if (direction.y < -.000001f)
+                    // Fog is the same finite opaque volume submitted by NativeScene.
+                    // Continue above it, but never expose underground cells or objects.
+                    if (fogged && RayBox(eye, direction, new Vector3(x, 0, z), new Vector3(x + 1, NativeScene.FogHeight, z + 1), out float fogHit)
+                        && fogHit <= exit + .00001f)
+                    { boundary = Math.Min(boundary, Math.Max(0, fogHit - .002f)); exit = Math.Min(exit, boundary); }
+                    if (!fogged && direction.y < -.000001f)
                     {
                         float floor = (.025f - eye.y) / direction.y;
                         if (floor >= entry - .00001f && floor <= exit + .00001f && Nearer(floor, nearest))
-                        { nearest = floor; selected = null; surface = true; }
+                        { nearest = floor; selected = null; surface = true; hiddenExterior = false; }
                     }
-                    if (map.roofGrid.Roofed(cell) && RayBox(eye, direction, new Vector3(x, 2.43f, z), new Vector3(x + 1, 2.55f, z + 1), out float roof)
-                        && Nearer(roof, nearest)) { nearest = roof; selected = null; surface = true; }
+                    if (!fogged && map.roofGrid.Roofed(cell) && RayBox(eye, direction, new Vector3(x, 2.43f, z), new Vector3(x + 1, 2.55f, z + 1), out float roof)
+                        && Nearer(roof, nearest)) { nearest = roof; selected = null; surface = true; hiddenExterior = false; }
 
                     bool complete = true;
                     // A four-cell margin also catches long lying/corpse silhouettes and
@@ -223,13 +241,14 @@ namespace RimFront
                     for (int dz = -4; dz <= 4 && complete; dz++) for (int dx = -4; dx <= 4 && complete; dx++)
                     {
                         IntVec3 near = new IntVec3(x + dx, 0, z + dz);
-                        if (!near.InBounds(map) || near.Fogged(map) || !visited.Add(near)) continue;
+                        if (!near.InBounds(map) || !visited.Add(near)) continue;
                         if (visited.Count > MaximumCells) { complete = false; break; }
                         foreach (Thing thing in map.thingGrid.ThingsListAtFast(near))
                         {
-                            if (thing == shooter || !thing.Spawned || thing.Map != map || !seen.Add(thing.thingIDNumber)) continue;
+                            if (thing == shooter || !thing.Spawned || thing.Map != map) continue;
+                            bool hidden = thing.Position.Fogged(map);
+                            if ((hidden && !NativeMountains.IsRock(thing)) || !seen.Add(thing.thingIDNumber)) continue;
                             if (seen.Count > MaximumThings) { complete = false; break; }
-                            if (thing.Position.Fogged(map)) continue;
                             float hit;
                             Pawn pawn = thing as Pawn;
                             Corpse corpse = thing as Corpse;
@@ -239,7 +258,7 @@ namespace RimFront
                                 // scenery is chunked: a large building's visible near face
                                 // may be within range even when its centre is farther away.
                                 Vector3 radial = thing.DrawPos - shooter.DrawPos; radial.y = 0;
-                                if (radial.sqrMagnitude > 900f) continue;
+                                if (radial.sqrMagnitude > NativeScene.ViewDistanceSquared) continue;
                                 Pawn body = pawn ?? corpse.InnerPawn;
                                 if (!NativePawns.TryAimPawn(body, thing.DrawPos, corpse != null, eye, yaw, pitch, out double pawnHit)) continue;
                                 hit = Math.Max(.001f, (float)pawnHit);
@@ -255,38 +274,40 @@ namespace RimFront
                                 {
                                     if (--triangleBudget < 0) { complete = false; break; }
                                     if (RayTriangle(eye, direction, geometry.Vertices[geometry.Triangles[index]], geometry.Vertices[geometry.Triangles[index + 1]],
-                                        geometry.Vertices[geometry.Triangles[index + 2]], out float contact) && Nearer(contact, hit)) hit = contact;
+                                        geometry.Vertices[geometry.Triangles[index + 2]], out float contact) && Nearer(contact, hit)
+                                        && (!hidden || (eye + direction * contact).y > NativeScene.FogHeight + .0001f)) hit = contact;
                                 }
                             }
-                            if (Nearer(hit, nearest)) { nearest = hit; selected = thing; surface = false; }
+                            if (Nearer(hit, nearest)) { nearest = hit; selected = thing; surface = hidden; hiddenExterior = hidden; }
                             if (!complete) break;
                         }
                     }
                     // Fail closed on unusually dense scenes: never choose through geometry
                     // that the bounded query could not examine.
                     if (!complete) { boundary = Math.Min(boundary, Math.Max(0, entry - .002f)); break; }
-                    if (exit >= limit || exit >= nearest) break;
+                    if (exit >= limit || exit >= nearest || exit >= boundary) break;
                     if (nextX <= nextZ) { x += stepX; entry = nextX; nextX += deltaX; if (Math.Abs(entry - nextZ) < .000001f) { z += stepZ; nextZ += deltaZ; } }
                     else { z += stepZ; entry = nextZ; nextZ += deltaZ; }
                 }
-                if (nearest > boundary) { nearest = boundary; selected = null; surface = false; }
+                if (nearest > boundary) { nearest = boundary; selected = null; surface = false; hiddenExterior = false; }
                 if (!Finite(nearest) || nearest < .0001f) return false;
                 Vector3 point = eye + direction * nearest;
                 IntVec3 targetCell = point.ToIntVec3();
-                if (!targetCell.InBounds(map) || targetCell.Fogged(map)) return false;
+                if (!targetCell.InBounds(map) || (targetCell.Fogged(map) && (!hiddenExterior || point.y <= NativeScene.FogHeight + .0001f))) return false;
                 // Cell-based native verbs measure range to cell centres. Bring an empty
                 // endpoint inward if rounding alone would put its cell out of range.
-                if (selected == null && constrainCellRange)
+                if ((selected == null || hiddenExterior) && constrainCellRange)
                 {
                     for (int adjust = 0; adjust < 16 && !CellWithinRange(shooter.Position.x, shooter.Position.z, targetCell.x, targetCell.z, maxRange); adjust++)
                     {
+                        if (hiddenExterior) return false; // Never move a surface contact into hidden interior.
                         nearest -= .1f; if (nearest <= 0) return false;
                         point = eye + direction * nearest; targetCell = point.ToIntVec3();
                     }
                     if (!CellWithinRange(shooter.Position.x, shooter.Position.z, targetCell.x, targetCell.z, maxRange)) return false;
                 }
-                result = new TargetInfo { Target = selected == null ? new LocalTargetInfo(targetCell) : new LocalTargetInfo(selected), Point = point,
-                    Distance = nearest, HitThing = selected != null, HitSurface = surface, Label = selected?.LabelShortCap.ToString() ?? (surface ? "surface" : "aim point") };
+                result = new TargetInfo { Target = selected == null || hiddenExterior ? new LocalTargetInfo(targetCell) : new LocalTargetInfo(selected), Point = point,
+                    Distance = nearest, HitThing = selected != null && !hiddenExterior, HitSurface = surface, Label = hiddenExterior ? "mountain" : selected?.LabelShortCap.ToString() ?? (surface ? "surface" : "aim point") };
                 return true;
             }
             catch (Exception error)

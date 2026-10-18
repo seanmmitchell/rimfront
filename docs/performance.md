@@ -6,22 +6,24 @@ RimFront captures input each frame and consumes it on game ticks. Rendering, mes
 
 | System | Bound / scheduling |
 | --- | --- |
-| Static scene | 49 chunks of 12 × 12 cells; at most one missing-chunk build per frame |
-| Static refresh | Dirty notifications prioritize changes; one cached chunk checked every 100 ms; fallback full cycle about 4.9 seconds |
+| Static scene | 121 / 289 / 441 chunks of 12 × 12 cells at 60 / 90 / 120 tiles; at most one chunk build/rebuild per frame |
+| Static refresh | Direct edits first, then nearest dirty profiles, then cache expansion; one cached chunk checked every 100 ms; fallback full cycle up to 12.1 / 28.9 / 44.1 seconds at full cache size |
 | Resource piles | One piece per five units, capped at 18: at most 1,152 triangles for logs or 360 for ingots/blocks; static mesh rebuild only when the quantity signature changes |
 | Lighting | At most one cached chunk relit per frame; 16 temporary muzzle lights |
 | Pawn appearance | 64 cached appearances plus nine shared fallback families; two refresh attempts and one articulated-rig build per frame |
 | Pawn detail | Up to 16 articulated pawns within 14 cells; assembled models otherwise |
-| Vegetation | Up to 4,096 plant cards from 8,192 candidates within 32 cells; 128 reusable texture batches; nearest plants prioritized |
+| Vegetation | Up to 4,096 plant cards from 8,192 candidates within the configured view range plus a two-cell sprite margin; 128 reusable texture batches; a bounded max heap retains the nearest candidates before distance sorting |
 | Pawn observation | 256 animation observations; 128 reload observations |
 | Weapons / shields | Twelve generic assembled weapon families, 36 generic reload parts, nine machine-gun profiles with 27 split parts, two bipod meshes, four hand meshes; 32 physical shield meshes |
 | Projectiles / impacts | 96 tracked projectiles, 128 tracer entries, 192 impact particles, 64 contact marks |
 | Blood | 256 transient particles, 128 recent event identities; 96 persistent splats per chunk, two blood things per cell, up to five instances per blood thing |
 | Shield effects | 48 impact entries, 24 haze candidates; haze discovery every 15 game ticks |
 | Weather | 96 rain streaks and 64 snowflakes; reusable precipitation mesh updated at 20 Hz |
-| Crosshair query | 1,024 cells, 768 things, 65,536 triangle checks; 768-entry CPU geometry cache |
+| Crosshair query | 4,096 cells, 3,072 things, 256 traversed ray segments, 65,536 triangle checks; 3,072-entry CPU geometry cache |
 | Pawn indicators | 24 labels, 512 retained candidates; up to 512 pawns scanned per render frame |
 | Minimap | One disabled orthographic camera and a 512 × 512 render target with a depth buffer. Native map/pawn/effect draws refresh every 200 ms; immediate refresh restores local coverage after travel. Uses native culling and assets; one existing aim query per refresh. 1.7 captures only this pass; 1.6 routes native draws to its camera/layer. Dense maps incur native renderer work and require live frame-time measurements |
+
+Mountain profiles keep one rock mask and height field for the active map. A two-pass distance transform and summed-area density calculation take linear time in map cells on entry and after rock occupancy changes. Non-rock mesh changes do not rebuild the profile. A profile revision dirties cached chunks. Each chunk captures its own immutable 13 × 13 corner grid and rock occupancy, then publishes that snapshot only after replacing its mesh. Aim/projectile geometry uses the published snapshot and changes revision with that mesh. Eviction removes the snapshot. Chunks still rebuild at most once per frame, so neighboring chunks can temporarily show different revisions while updates settle. The profile includes unexplored rock bulk and caps height at 24 tiles. Unknown rock and ore share a uniform exterior tint, while opaque fog obscures underground cells. Exterior surfaces above the 2.55-tile ceiling receive sky lighting.
 
 Live pawns and door leaves update separately from static chunks. Shared family fallback models are created lazily outside the appearance refresh budget, so cold entry into a mixed-species scene can create several models in one frame. Geometry/color setters can cause full Waylith mesh uploads; incremental relighting still has a cost. Transparent shields add blending work. Dense blood and over-budget animation use simplified presentation.
 

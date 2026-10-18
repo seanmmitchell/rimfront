@@ -66,6 +66,7 @@ internal static partial class Program
             TestShotCadence(assembly);
             TestReloadContinuation(assembly);
             TestVegetation(assembly);
+            TestVegetationAdmission(assembly);
             TestPawnSprites(assembly);
             TestNativeMinimap(assembly);
             if(args.Length==4){File.WriteAllText(args[3],JsonSerializer.Serialize(catalog));File.WriteAllText(Path.ChangeExtension(args[3],"weapons.json"),JsonSerializer.Serialize(weaponCatalog));File.WriteAllText(Path.ChangeExtension(args[3],"objects.json"),JsonSerializer.Serialize(objectCatalog));File.WriteAllText(Path.ChangeExtension(args[3],"actions.json"),JsonSerializer.Serialize(actionCatalog));}

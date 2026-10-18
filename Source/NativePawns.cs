@@ -143,7 +143,7 @@ namespace RimFront
             Geometry standing, Geometry[] parts, bool articulated, Matrix4x4 root, Vector3 eye, float yaw, float pitch, out double ahead)
         {
             ahead = 0;
-            if (!NativeAimTargeting.Ray(yaw, pitch, 30f, out Vector3 direction, out float unused)) return false;
+            if (!NativeAimTargeting.Ray(yaw, pitch, NativeScene.ViewDistance, out Vector3 direction, out float unused)) return false;
             float nearest = float.PositiveInfinity;
             if (articulated && parts != null)
             {

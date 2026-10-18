@@ -105,7 +105,7 @@ namespace RimFront
             if (current == null || current != controlled?.Map || !Finite(position)) return false;
             IntVec3 cell = position.ToIntVec3();
             Vector3 delta = position - controlled.DrawPos; delta.y = 0;
-            return cell.InBounds(current) && !cell.Fogged(current) && delta.sqrMagnitude <= 900f;
+            return cell.InBounds(current) && !cell.Fogged(current) && delta.sqrMagnitude <= NativeScene.ViewDistanceSquared;
         }
         static Color BloodColor(Pawn pawn)
         {
@@ -240,7 +240,7 @@ namespace RimFront
                         Vector3 position = PositionAt(particle.Origin, particle.Velocity, Math.Min(age, particle.StopAge));
                         Vector3 delta = position - controlled.DrawPos; delta.y = 0;
                         IntVec3 cell = position.ToIntVec3();
-                        if (delta.sqrMagnitude > 900f || !cell.InBounds(current) || cell.Fogged(current)) continue;
+                        if (delta.sqrMagnitude > NativeScene.ViewDistanceSquared || !cell.InBounds(current) || cell.Fogged(current)) continue;
                         bool flat = position.y <= .0401f;
                         AddOctahedron(position, particle.Size * RemainingScale(age) * (flat ? 1.8f : 1f), flat, particle.Color);
                     }

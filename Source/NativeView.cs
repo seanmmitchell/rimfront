@@ -82,8 +82,8 @@ namespace RimFront
                 camera.orthographic = false;
                 camera.fieldOfView = 75f;
                 camera.nearClipPlane = 0.06f;
-                // Match the scene's bounded pawn/aim visibility radius.
-                camera.farClipPlane = 30f;
+                // Match the shared scene and aim range.
+                camera.farClipPlane = NativeScene.ViewDistance;
                 camera.clearFlags = CameraClearFlags.SolidColor;
                 camera.backgroundColor = new Color(0.37f, 0.46f, 0.48f);
                 ApplyPose();
@@ -189,6 +189,7 @@ namespace RimFront
                     ? Vector3.Lerp(pawn.Position.ToVector3Shifted(), pawn.pather.nextCell.ToVector3Shifted(), pawn.pather.MovePercentage)
                     : pawn.Position.ToVector3Shifted();
             }
+            camera.farClipPlane = NativeScene.ViewDistance;
             position.y = EyeHeight;
             camera.transform.position = position;
             camera.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
@@ -197,7 +198,7 @@ namespace RimFront
         internal static CellRect ViewRect()
         {
             if (pawn?.Map == null) return default(CellRect);
-            CellRect rect = CellRect.CenteredOn(pawn.Position, 34);
+            CellRect rect = CellRect.CenteredOn(pawn.Position, Mathf.CeilToInt(NativeScene.ViewDistance) + 4);
             rect.ClipInsideMap(pawn.Map);
             return rect;
         }

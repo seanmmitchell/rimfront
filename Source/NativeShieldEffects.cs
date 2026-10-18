@@ -168,14 +168,14 @@ namespace RimFront
                         foreach (Pawn pawn in current.mapPawns.AllPawnsSpawned)
                         {
                             if (hazePawns.Count >= MaximumHazePawns) break;
-                            if (pawn != controlled && Visible(pawn, current) && pawn.Position.DistanceToSquared(controlled.Position) < 30 * 30
+                            if (pawn != controlled && Visible(pawn, current) && pawn.Position.DistanceToSquared(controlled.Position) < NativeScene.ViewDistanceSquared
                                 && HasActiveShield(pawn)) hazePawns.Add(pawn);
                         }
                     }
                     foreach (Pawn pawn in hazePawns)
                     {
                         if (!Visible(pawn, current) || !HasActiveShield(pawn)
-                            || pawn.Position.DistanceToSquared(controlled.Position) >= 30 * 30) continue;
+                            || pawn.Position.DistanceToSquared(controlled.Position) >= NativeScene.ViewDistanceSquared) continue;
                         BubblePose(pawn, out Vector3 center, out Vector3 size);
                         Draw(sphere, center, size, new Color(.40f, .68f, 1f, .014f), true);
                     }
@@ -214,7 +214,7 @@ namespace RimFront
                 {
                     if (Find.CameraDriver == null || !Find.CameraDriver.CurrentViewRect.Contains(impact.Pawn.Position)) continue;
                 }
-                else if (impact.Pawn.Position.DistanceToSquared(controlled.Position) >= 30 * 30) continue;
+                else if (impact.Pawn.Position.DistanceToSquared(controlled.Position) >= NativeScene.ViewDistanceSquared) continue;
                 BubblePose(impact.Pawn, out Vector3 center, out Vector3 size);
                 if (colony)
                 {

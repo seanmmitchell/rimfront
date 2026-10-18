@@ -513,7 +513,7 @@ namespace RimFront
             IntVec3 cell = position.ToIntVec3();
             if (!cell.InBounds(map) || cell.Fogged(map)) return false;
             Vector3 delta = position - controlled.DrawPos; delta.y = 0f;
-            return delta.sqrMagnitude <= 900f;
+            return delta.sqrMagnitude <= NativeScene.ViewDistanceSquared;
         }
 
         static void AddStreak(Vector3 from, Vector3 to, float duration, float width, bool flash)
@@ -525,7 +525,7 @@ namespace RimFront
         }
 
         // Long CE beams are clipped once when observed, never extended into undiscovered fog
-        // or outside the 30-cell view. Short moving-projectile segments cost only a few samples.
+        // or outside the configured view. Short moving-projectile segments cost only a few samples.
         static bool ClipForDisplay(ref Vector3 from, ref Vector3 to)
         {
             if (currentMap == null || !NativeEffectMath.IsFinite(from) || !NativeEffectMath.IsFinite(to)) return false;

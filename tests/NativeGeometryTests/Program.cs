@@ -5,7 +5,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.Loader;
 
-internal static class Program
+internal static partial class Program
 {
     const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
     static int checks;
@@ -59,10 +59,12 @@ internal static class Program
         CheckBounds(Points(transformed), new[] { 9f, 2f, -6f }, new[] { 15f, 6f, -4f });
         CheckTriangles(transformed, new[] { 12f, 4f, -5f });
         Type scene = assembly.GetType("RimFront.NativeScene", true);
-        int radius = (int)scene.GetField("ChunkRadius", Flags).GetRawConstantValue();
+        int radius = (int)scene.GetProperty("ChunkRadius", Flags).GetValue(null);
         int maximum = (int)scene.GetField("MaximumChunks", Flags).GetRawConstantValue();
         Check((2 * radius + 1) * (2 * radius + 1) <= maximum, "cache neighborhood fits declared budget");
         Check((int)scene.GetField("ChunkSize", Flags).GetRawConstantValue() > 0, "chunk size positive");
+        TestMountainsAndRange(assembly);
+        TestChunkRebuildOrder(assembly);
         TestLighting(assembly);
         TestWeather(assembly);
         TestWeapons(assembly);
@@ -70,6 +72,63 @@ internal static class Program
         TestReloadAnimation(assembly);
         TestAnalogCombat(assembly, unity);
         Console.WriteLine($"PASS: {checks} native geometry, lighting, weather, weapons, reload, CE coordinates, effect math and budget checks using compiled implementations and local 1.7 math. No GPU or game session was started.");
+    }
+    static void TestMountainsAndRange(Assembly assembly)
+    {
+        Type mountains = assembly.GetType("RimFront.NativeMountains", true);
+        object cell = NewBuilder();
+        mountains.GetMethod("AddCell", Flags).Invoke(null, new object[] { cell, 11, 23, 6f, 8f, 9f, 7f, Tint() });
+        CheckBounds(Points(cell), new[] { 11f, 0f, 23f }, new[] { 12f, 9f, 24f });
+        CheckTriangles(cell, new[] { 11.5f, 2f, 23.5f });
+        Check(Points(cell).Count == 30 && Indices(cell).Count == 30, "mountain has a faceted top and four solid sides");
+        Check(LightingPoints(cell).Count == Points(cell).Count, "mountain faces have native lighting samples");
+        object next = NewBuilder();
+        mountains.GetMethod("AddCell", Flags).Invoke(null, new object[] { next, 12, 23, 8f, 10f, 11f, 9f, Tint() });
+        var a = Points(cell); var b = Points(next);
+        foreach (float[] seam in new[] { new[] { 12f, 8f, 23f }, new[] { 12f, 9f, 24f } })
+            Check(a.Exists(p => Distance(p, seam) < .00001) && b.Exists(p => Distance(p, seam) < .00001), "adjacent rock meshes share exact vertices at a chunk boundary");
+        Type aim = assembly.GetType("RimFront.NativeAimTargeting", true);
+        MethodInfo triangle = aim.GetMethod("RayTriangle", Flags);
+        bool hit = false;
+        var indices = Indices(cell);
+        for (int i = 0; i < indices.Count; i += 3)
+        {
+            object[] args = { Vec(11.5f, 6, 20), Vec(0, 0, 1),
+                Vec(a[indices[i]][0], a[indices[i]][1], a[indices[i]][2]),
+                Vec(a[indices[i+1]][0], a[indices[i+1]][1], a[indices[i+1]][2]),
+                Vec(a[indices[i+2]][0], a[indices[i+2]][1], a[indices[i+2]][2]), 0f };
+            hit |= (bool)triangle.Invoke(null, args) && Math.Abs((float)args[5] - 3f) < .00001;
+        }
+        Check(hit, "aim ray contacts a mountain above the old wall and coarse-box height");
+        Type mod = assembly.GetType("RimFront.RimFrontMod", true), settingsType = assembly.GetType("RimFront.RimFrontSettings", true);
+        FieldInfo settings = mod.GetField("Settings", Flags);
+        object saved = settings.GetValue(null), testSettings = Activator.CreateInstance(settingsType);
+        try
+        {
+            settings.SetValue(null, testSettings);
+            Type scene = assembly.GetType("RimFront.NativeScene", true);
+            MethodInfo ray = aim.GetMethod("Ray", Flags);
+            foreach (int step in new[] { 0, 1, 2 })
+            {
+                settingsType.GetField("extraViewRange").SetValue(testSettings, step);
+                float distance = 60f + step * 30;
+                Check((float)scene.GetProperty("ViewDistance", Flags).GetValue(null) == distance, "live settings drive the shared rendering range");
+                Check((float)scene.GetProperty("ViewDistanceSquared", Flags).GetValue(null) == distance * distance, "live radial culling matches range");
+                Check((float)assembly.GetType("RimFront.NativeVegetation", true).GetProperty("RenderRadius", Flags).GetValue(null) == distance + 2, "vegetation follows every live range setting");
+                foreach (float pitch in new[] { -.8f, 0f, .8f })
+                {
+                    object[] args = { 0f, pitch, 200f, Vec(0, 0, 0), 0f };
+                    Check((bool)ray.Invoke(null, args), "extended view produces an aim ray");
+                    float[] direction = Coordinates(args[3]);
+                    double length = Math.Sqrt(1 + direction[1] * direction[1]) * (float)args[4];
+                    Check(Math.Abs(length - distance) < .001, "pitched aim reaches each configured view distance");
+                    args[2] = 20f;
+                    ray.Invoke(null, args);
+                    Check((float)args[4] <= 20f, "extended visibility retains native weapon range");
+                }
+            }
+        }
+        finally { settings.SetValue(null, saved); }
     }
     static object NewBuilder() => Activator.CreateInstance(builder, true);
     static void TestReloadAnimation(Assembly assembly)

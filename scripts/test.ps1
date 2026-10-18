@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$Dotnet = 'dotnet', [string]$RimWorld17Dir = $env:RIMWORLD_17_DIR, [string]$Harmony17Dir = $env:HARMONY_17_DIR)
+param([string]$Dotnet = 'dotnet', [string]$RimWorld17Dir = $env:RIMWORLD_17_DIR, [string]$Harmony17Dir = $env:HARMONY_17_DIR, [string]$CombatExtendedAssembly = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 & $Dotnet run --project (Join-Path $projectRoot 'tests/PawnSpriteTests/PawnSpriteTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
@@ -22,6 +22,12 @@ if (-not [string]::IsNullOrWhiteSpace($RimWorld17Dir)) {
 } else { Write-Host 'Native geometry tests skipped: pass -RimWorld17Dir after building 1.7.' }
 & $Dotnet run --project (Join-Path $projectRoot 'tests/InputTests/InputTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
 if ($LASTEXITCODE -ne 0) { throw "Native input tests failed ($LASTEXITCODE)." }
+& $Dotnet run --project (Join-Path $projectRoot 'tests/WeaponControlTests/WeaponControlTests.csproj') --configuration Release
+if ($LASTEXITCODE -ne 0) { throw "Weapon control tests failed ($LASTEXITCODE)." }
+if (-not [string]::IsNullOrWhiteSpace($CombatExtendedAssembly)) {
+    & $Dotnet run --project (Join-Path $projectRoot 'tests/CeContractTests/CeContractTests.csproj') --configuration Release -- $CombatExtendedAssembly
+    if ($LASTEXITCODE -ne 0) { throw "Installed CE contract tests failed ($LASTEXITCODE)." }
+} else { Write-Host 'Installed CE metadata checks skipped: pass -CombatExtendedAssembly.' }
 & (Join-Path $projectRoot 'tests/PackageTests/PackageTests.ps1')
 Write-Host 'Automated checks passed. These tests do not replace in-game validation.'
 

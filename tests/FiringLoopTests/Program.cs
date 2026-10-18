@@ -9,6 +9,10 @@ internal static class Program
     {
         var scenarios = new (string Id, Action Run)[]
         {
+            ("vg-mount-to-auto-transition", BraceAutoTransition),
+            ("vg-simultaneous-one-action", SimultaneousBipods),
+            ("vg-unsupported-auto-preserves-brace", UnsupportedAutoBrace),
+            ("vg-pause-clears-both-actions", BothBipodsPaused),
             ("v-preserves-native-reload", BipodReload),
             ("v-ce-setting-and-auto-scope", BipodCeScope),
             ("v-queued-pause-discards", BipodQueuedPause),
@@ -37,6 +41,11 @@ internal static class Program
             ("pause-held-release-gate", PauseHeld),
             ("mode-switch-held-release-gate", ModeSwitch),
             ("bipod-setup-held-fire", BipodSetup),
+            ("bipod-toggle-cancels-setup", BipodToggle),
+            ("bipod-paused-stale-clears-toggle", BipodInputLifetime),
+            ("bipod-toggle-during-fire-reload", BipodWhileBusy),
+            ("bipod-toggle-foreign-job", BipodForeignJob),
+            ("bipod-toggle-movement-cancels-click", BipodMovingClick),
             ("movement-cancels-warmup", Movement),
             ("invalid-aim-recovery", InvalidAim),
             ("stalled-attack-recovery", StalledAttack),
@@ -71,6 +80,42 @@ internal static class Program
         Console.WriteLine(JsonSerializer.Serialize(new { summary = true, scenarios = scenarios.Length,
             passed = scenarios.Length - failed, failed }));
         return failed == 0 ? 0 : 1;
+    }
+
+    static void BraceAutoTransition()
+    {
+        using var w = Loaded(); var comp = AttachBipod(w);
+        w.Frame(brace: true); w.Tick(); w.Frame(); w.Tick(6);
+        Require(RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "V mount completed before G");
+        w.Frame(bipod: true); w.Tick();
+        Require(!w.AutoBipod && !RimFront.NativeWeaponBrace.IsMounted(w.Pawn) && !comp.IsSetUpRn,
+            "G OFF clears the manual mount and native deployment");
+        w.Frame(bipod: true); w.Tick();
+        var hook = typeof(RimFront.NativeWeaponBrace).GetMethod("ShouldSetUp", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        object[] args = { comp, true };
+        Require(w.AutoBipod && (bool)hook.Invoke(null, args), "G ON returns setup decisions to native CE rules");
+    }
+    static void SimultaneousBipods()
+    {
+        using var w = Loaded(); var comp = AttachBipod(w);
+        w.Frame(brace: true, bipod: true); w.Tick(); w.Frame(); w.Tick(8);
+        Require(w.BipodToggles == 1 && comp.DeployCalls == 0 && !RimFront.NativeWeaponBrace.IsMounted(w.Pawn),
+            "simultaneous V/G chooses G once and never replays V");
+    }
+    static void UnsupportedAutoBrace()
+    {
+        using var w = Loaded(); w.HasBipod = false;
+        w.Frame(brace: true); w.Tick();
+        w.Frame(bipod: true); w.Tick();
+        Require(w.BipodToggles == 0 && RimFront.NativeWeaponBrace.IsMounted(w.Pawn),
+            "unsupported G leaves the non-CE V brace intact");
+    }
+    static void BothBipodsPaused()
+    {
+        using var w = Loaded();
+        w.Frame(brace: true, bipod: true); w.Frame(paused: true); w.Frame(); w.Tick();
+        Require(w.BipodToggles == 0 && !RimFront.NativeWeaponBrace.IsMounted(w.Pawn),
+            "pause discards both pending controls before unpause");
     }
 
     static void BipodReload()
@@ -428,6 +473,56 @@ internal static class Program
         Until(world, () => world.Shots > stoppedAt, "New click failed after mode switching.");
     }
 
+    static void BipodToggle()
+    {
+        using var world = Loaded();
+        world.SetSetupWait(100);
+        world.Frame(held: true, bipod: true); world.Tick();
+        Require(world.Active && !world.AutoBipod && world.SetupRemaining == 0 && world.BipodToggles == 1,
+            "G must cancel ongoing setup before the setup wait returns.");
+        Run(world, 15);Require(world.Shots > 0 && world.BipodToggles == 1,"held fire recovers without repeating the toggle");
+        world.Frame(bipod: true);world.Tick();Require(world.AutoBipod,"second press re-enables automatic setup");
+        world.HasBipod = false;world.Frame(bipod: true);world.Tick();Healthy(world);
+        Require(world.BipodToggles == 2,"unsupported weapon must not mutate bipod state");
+    }
+    static void BipodInputLifetime()
+    {
+        using var world = Loaded();
+        world.Frame(bipod: true, paused: true);world.Frame();world.Tick();
+        Require(world.BipodToggles == 0,"paused G replayed after unpause");
+        world.Frame(bipod: true);world.ExpireInput();world.Tick();world.Frame();world.Tick();
+        Require(world.BipodToggles == 0,"stale G replayed on recovery");
+        world.Frame(bipod: true);world.Frame(release: true);world.Game.Control(world.Pawn);world.Frame();world.Tick();
+        Require(world.BipodToggles == 0 && world.AutoBipod,"pending G leaked across possession");
+    }
+    static void BipodWhileBusy()
+    {
+        using var world = Loaded();
+        world.Frame(held: true);Until(world,()=>world.Shots>0,"shot never started");
+        int orders=world.AttackOrders, shots=world.Shots;
+        world.Frame(held: true,bipod: true);world.Tick();Healthy(world);
+        Require(world.BipodToggles==1&&world.AttackOrders==orders,"toggle replaces active attack");
+        Until(world,()=>world.Shots>shots,"held auto failed after toggle");
+        world.Ammo=1;world.Reserve=20;world.Frame(reload:true);world.Tick();
+        Until(world,()=>world.ReloadRemaining>0,"reload never started",held:false);
+        world.Frame(bipod:true);world.Tick();Healthy(world);
+        Require(world.BipodToggles==2&&world.ReloadRemaining>0,"toggle interrupts native reload");
+        Until(world,()=>world.ReloadRemaining<=0,"reload stuck",held:false);
+    }
+    static void BipodMovingClick()
+    {
+        using var world=Loaded("Single");
+        world.Frame(held:true,forward:1,bipod:true);world.Tick();
+        world.Frame();Run(world,20,held:false);
+        Require(world.Shots==0&&world.BipodToggles==1,"G retained a click cancelled by movement");
+        world.Frame(held:true);Until(world,()=>world.Shots==1,"fresh click failed after G/movement",held:false);
+    }
+    static void BipodForeignJob()
+    {
+        using var world=Loaded();world.SetExternalJob("JobDef_SetUpBipod",forced:true);world.SetupRemaining=100;
+        world.Frame(bipod:true);world.Tick();
+        Require(!world.Active&&world.BipodToggles==0,"G preempted an external/forced job");
+    }
     static void BipodSetup()
     {
         using var world = Loaded();

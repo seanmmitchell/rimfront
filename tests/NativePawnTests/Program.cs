@@ -55,6 +55,7 @@ internal static partial class Program
             TestTargetIndicators(assembly);
             TestFreeAim(assembly);
             TestFreeFire(assembly);
+            TestShotSource(assembly);
             TestCeTraversal(assembly);
             TestVanillaAim(assembly);
             TestVanillaWorldCollision(assembly);

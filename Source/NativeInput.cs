@@ -14,6 +14,7 @@ namespace RimFront
         public bool reload;
         public bool cycleFireMode;
         public bool toggleBrace;
+        public bool toggleBipod;
 
         public bool IsValid()
         {

@@ -2,7 +2,7 @@
 
 This executable compiles the repository's **actual `Source/Gameplay.cs`**, `NativeInput.cs`, and `NativeJobPolicy.cs`. It calls `GameComponentUpdate`, `GameComponentTick`, `BeforeNativeJobStart`, and `BeforeNativeJobCleanup` across successive frames/ticks. It does not reimplement the controller's trigger, pending-input, ownership, reload-resumption, or stale-input decisions in a test-only state machine.
 
-`EngineFixture.cs` substitutes the engine boundary: pawn/job/stance objects, input/rendering, equipped-weapon adapter, and a deterministic weapon scheduler. The scheduler supplies finite warmup/burst/cooldown jobs, magazine/reserve accounting, native reload transitions, and finite bipod setup. It invokes controller callbacks before native job replacement/cleanup and simulates the stale-job resume queue if resumption is allowed. Frame order matches the inspected 1.7 game: native tick, controller tick, then the next frame's input. Stale ages are injected without sleeping.
+`EngineFixture.cs` substitutes the engine boundary: pawn/job/stance objects, input/rendering, equipped-weapon adapter, and a deterministic weapon scheduler. The scheduler supplies finite warmup/burst/cooldown jobs, magazine/reserve accounting, native reload transitions, and finite bipod setup and a simulated bipod-toggle adapter. It invokes controller callbacks before native job replacement/cleanup and simulates the stale-job resume queue if resumption is allowed. Frame order matches the inspected 1.7 game: native tick, controller tick, then the next frame's input. Stale ages are injected without sleeping.
 
 ## What these tests establish
 
@@ -40,6 +40,9 @@ This is controller integration coverage with a simulated engine boundary. It doe
 
 ## V bipod controller coverage
 
-The harness also links production `NativeBipods.cs`. Eight additional scenarios cover non-CE brace/fold/movement, native CE timed completion and cancellation, queued/paused V, stale input/exit, exact-weapon replacement, held-trigger release gating, disabled CE bipod mechanics, preservation of native reloads, and the exact-component scope of the auto-setup hook. The total is 43 named scenarios. CE components, settings and job timing are simulated; the scope hook is invoked directly. The fixture does not execute Harmony binding or CE stat calculations.
+The harness also links production `NativeWeaponBrace.cs`. Eight additional scenarios cover non-CE brace/fold/movement, native CE timed completion and cancellation, queued/paused V, stale input/exit, exact-weapon replacement, held-trigger release gating, disabled CE bipod mechanics, preservation of native reloads, and the exact-component scope of the auto-setup hook. The total is 52 named scenarios. CE components, settings and job timing are simulated; the scope hook is invoked directly. The fixture does not execute Harmony binding or CE stat calculations.
 
 The installed-assembly helper suite separately tests the real classifier, CE spelled-out definition aliases, distinct finite machine-gun meshes, muzzle/socket agreement, nondegenerate triangles, bipod states and mesh budgets. `model-catalog.ps1` exports and renders those compiled meshes.
+Bipod regressions cover G during setup/fire/reload, one-shot consumption, pause/stale/re-entry clearing, unsupported weapons, foreign jobs and movement cancelling a queued click. The `bipod-toggle-ignored` mutation must compile and fail `bipod-toggle-cancels-setup`. The weapon adapter remains simulated here; `WeaponControlTests` separately links the real bipod and source adapters.
+
+Four integration scenarios verify V/G mount transitions, simultaneous input, unsupported G preserving a brace, and pause clearing both pending actions.

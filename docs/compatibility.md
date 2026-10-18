@@ -66,3 +66,11 @@ On 2026-10-17, all 27 fixed-controller scenarios passed and all six deliberately
 Run `scripts/verify-release.ps1` to build both targets, run the existing suites plus the firing-loop scenarios and six deliberate regression variants, then package only on success. A variant must compile and fail its designated behavior scenario. Report scenario outcomes separately from geometry/helper assertion totals. The [suite documentation](https://github.com/seanmmitchell/rimfront/blob/main/tests/FiringLoopTests/README.md) explains its simulated boundaries; native CE/Harmony and live input behavior remain outside that harness.
 
 Run the [smoke checklist](smoke-tests.md) on 1.6 and 1.7, with and without appropriate CE builds. Include actual M60 setup/reload and multiple held-Auto cycles, not only entry/exit. Record game/mod versions, hardware, logs and failures. Measure live frame times using [performance.md](performance.md). Until those checks pass, describe RimFront as experimental, not universally compatible or a proven lag fix.
+
+## Bipod toggle and LMG source PR — 2026-10-18
+
+G adds a possession-only setup veto for the controlled equipped CE bipod. Disabling invokes CE's native close/stat reset and cancels only a verified automatic setup. Enabling returns the decision to CE; it does not override CE global/aim-mode settings. Exit restores native setup decisions; the session preference resets on entry.
+
+Owned CE casts sample the rendered muzzle and clip camera-to-barrel travel against bounded rendered geometry. The same sample supplies source XZ, shot height, rotation, gravity calculation and range-estimation distance; native recoil/spread/ammunition and multi-barrel offsets remain. Native M60 names now select the heavy model.
+
+Verification includes both builds, 40 production-controller scenarios and eight deliberately broken controller variants, source-linked adapter tests, compiled helper/transpiler/nested-scope tests, and eight optional installed CE metadata contracts. The inspected CE workshop DLL advertises 1.6 and references UnityEngine.CoreModule; it cannot be directly loaded with the installed 1.7 UnityStubs runtime in a standalone process. Its metadata is useful evidence of signatures/IL, not proof of 1.7 compatibility or runtime patch binding. Live branch-compatible CE/M60 validation remains pending.

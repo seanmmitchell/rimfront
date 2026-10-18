@@ -53,7 +53,7 @@ namespace RimFront
             if (n.Contains("shotgun") || n.Contains("buckshot") || n.Contains("mossberg")) return WeaponKind.Shotgun;
             if (n.Contains("sniper") || n.Contains("marksman") || n.Contains("boltaction") || n.Contains("bolt_action")) return WeaponKind.Sniper;
             if (n.Contains("smg") || n.Contains("submachine") || n.Contains("uzi") || n.Contains("mp5")) return WeaponKind.Smg;
-            if (n.Contains("minigun") || n.Contains("machinegun") || n.Contains("lmg") || n.Contains("hmg") || n.Contains("autocannon")) return WeaponKind.Heavy;
+            if (n.Contains("minigun") || n.Contains("machinegun") || n.Contains("lmg") || n.Contains("m60") || n.Contains("hmg") || n.Contains("autocannon")) return WeaponKind.Heavy;
             if (n.Contains("pistol") || n.Contains("handgun") || n.Contains("glock") || n.Contains("deserteagle")) return WeaponKind.Pistol;
             // Modded or future ranged definitions remain visibly equipped without guessing their mechanics.
             return WeaponKind.Rifle;

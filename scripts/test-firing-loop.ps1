@@ -98,6 +98,8 @@ try {
     if ($VerifyMutations) {
         $original = [IO.File]::ReadAllText($gameplayPath)
         $mutations = @(
+            @{ Name = 'bipod-toggle-ignored'; Scenario = 'bipod-toggle-cancels-setup';
+                Anchor = 'NativeBipods.TryToggle(pawn, out message)'; Replacement = 'false /* mutation: ignore G */' },
             @{ Name = 'stale-release-latch'; Scenario = 'stale-auto-recovery';
                 Anchor = 'suppressNextFireEdge = true;'; Replacement = 'requireFireRelease = true;' },
             @{ Name = 'reload-resumes-stale-attack'; Scenario = 'reload-resume-ownership';

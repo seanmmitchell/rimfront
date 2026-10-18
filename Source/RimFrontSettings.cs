@@ -8,8 +8,10 @@ namespace RimFront
         public int extraViewRange = 0;
         public bool analogMovement = true;
         public bool movingFire = true;
+        public bool movingReload = true;
         public bool animatePawns = true;
         public bool spritePawns = false;
+        public bool spriteWeapons = true;
         public bool shieldHaze = true;
         public bool shieldImpacts = true;
         public bool shieldImpactsInColony = false;
@@ -28,8 +30,10 @@ namespace RimFront
             extraViewRange = ViewRange.Step(extraViewRange);
             Scribe_Values.Look(ref analogMovement, "analogMovement", true);
             Scribe_Values.Look(ref movingFire, "movingFire", true);
+            Scribe_Values.Look(ref movingReload, "movingReload", true);
             Scribe_Values.Look(ref animatePawns, "animatePawns", true);
             Scribe_Values.Look(ref spritePawns, "spritePawns", false);
+            Scribe_Values.Look(ref spriteWeapons, "spriteWeapons", true);
             Scribe_Values.Look(ref shieldHaze, "shieldHaze", true);
             Scribe_Values.Look(ref shieldImpacts, "shieldImpacts", true);
             Scribe_Values.Look(ref shieldImpactsInColony, "shieldImpactsInColony", false);
@@ -60,7 +64,9 @@ namespace RimFront
             listing.Label("Changes apply the next time you enter RimFront. An unsupported CE adapter automatically uses native movement.");
             listing.Gap();
             listing.CheckboxLabeled("Move while firing (default)", ref movingFire,
-                "Fire ranged weapons while walking at half speed. Applies immediately. Disable to make movement cancel firing. Reloads and bipod setup remain stationary.");
+                "Fire ranged weapons while walking at half speed. Applies immediately. Disable to make movement cancel firing. Bipod setup remains stationary.");
+            listing.CheckboxLabeled("Move while reloading (default)", ref movingReload,
+                "Walk during a supported reload of your equipped weapon. Native reload timing and ammunition remain unchanged. Disable to stand still during reloads. Applies immediately.");
             listing.Label("Hold Left Ctrl to crouch behind cover. Crouching also halves walking speed.");
             listing.Gap();
             listing.Label("Character rendering");
@@ -68,10 +74,12 @@ namespace RimFront
                 "Show a cached native colony view with a lightweight pawn overlay. Disable to remove its rendering cost. Applies immediately.");
             listing.CheckboxLabeled("Use viewpoint-based 2D characters", ref spritePawns,
                 "Replace nearby 3D characters with upright native sprites. Front, side and back artwork follows your viewpoint. Applies immediately; disable to restore 3D models. First-person hands stay 3D. Unavailable artwork falls back to 3D.");
+            listing.CheckboxLabeled("3D weapons on 2D characters (default)", ref spriteWeapons,
+                "Show modeled held or stowed weapons on upright 2D characters. Applies when 2D characters are enabled. Disable to show only their native body and apparel art. First-person weapons are unaffected.");
             listing.CheckboxLabeled("Animate nearby 3D pawns", ref animatePawns,
                 "Animate limbs and clothing on nearby pawns. Disable to reduce rendering work while keeping their dressed models visible.");
-            listing.CheckboxLabeled("Pawn status indicators", ref pawnIndicators,
-                "Label visible colonists, friends, guests, prisoners and hostiles. Prison breaks flash orange/red. You can deliberately fire at any faction.");
+            listing.CheckboxLabeled("Show overhead tags", ref pawnIndicators,
+                "Label visible pawns within half the current view distance (30 / 45 / 60 tiles). Disable to hide all overhead name/status tags. Does not hide minimap dots or the HUD.");
             listing.Gap();
             listing.Label("Shield effects");
             listing.CheckboxLabeled("Faint shield-belt haze", ref shieldHaze,

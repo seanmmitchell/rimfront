@@ -36,6 +36,11 @@ internal static class Program
             ("release-during-reload", ReleaseDuringReload),
             ("pre-shot-reload-retains-click", PreShotReload),
             ("movement-during-reload-cancels-click", MovementDuringReload),
+            ("moving-reload-manual-preserves-job", MovingReload),
+            ("moving-reload-auto-trigger", MovingAutoReload),
+            ("moving-reload-toggle-immediate", MovingReloadToggle),
+            ("moving-reload-stale-stun-exit", MovingReloadSafety),
+            ("moving-reload-foreign-job", MovingReloadForeign),
             ("stale-auto-recovery", StaleAuto),
             ("stale-single-no-new-click", StaleSingle),
             ("pause-held-release-gate", PauseHeld),
@@ -445,6 +450,97 @@ internal static class Program
             "Movement during reload failed to discard the queued pre-shot click; gun fired after movement stopped.");
         world.Frame(held: true); Run(world, 30);
         Require(world.Shots == 1, "A fresh click after cancelled reload intent did not fire exactly once.");
+    }
+
+    static FiringWorld ReloadWorld(bool analog)
+    {
+        var world = Loaded(); world.Game.Release("reload movement setup");
+        RimFront.RimFrontMod.Settings.analogMovement = analog; world.Game.Control(world.Pawn);
+        world.Ammo = 1; world.MagazineSize = 6; world.Reserve = 20; world.ReloadTicks = 10;
+        return world;
+    }
+    static bool Walking(FiringWorld world) => RimFront.AnalogMovement.Active
+        ? RimFront.AnalogMovement.IsMoving : world.Pawn.pather.Moving;
+
+    static void MovingReload()
+    {
+        foreach (bool analog in new[] { true, false })
+        {
+            using var world = ReloadWorld(analog);
+            // Reload movement is independent of the firing movement preference.
+            RimFront.RimFrontMod.Settings.movingFire = false;
+            world.Frame(reload: true, forward: 1); world.Tick();
+            var reload = world.Pawn.CurJob;
+            Require(reload?.def.defName == "ReloadWeapon" && Walking(world), "default reload did not allow movement");
+            Require(world.Game.MovementSpeedFactor == 1f, "reload inherited the firing speed penalty");
+            for (int i = 0; i < 9; i++)
+            {
+                world.Frame(forward: 1); world.Tick();
+                Require(world.Pawn.CurJob == reload && Walking(world) && world.Reloads == 1 && world.Ammo == 1,
+                    "WASD replaced/restarted/completed the native reload early");
+            }
+            world.Frame(forward: 1); world.Tick();
+            Require(world.Ammo == 6 && world.Reserve == 15 && world.Reloads == 1 && world.Shots == 0,
+                "moving changed native reload timing or ammunition");
+        }
+    }
+    static void MovingAutoReload()
+    {
+        foreach (string mode in new[] { "Single", "Burst", "Auto" })
+        foreach (bool analog in new[] { true, false })
+        {
+            using var world = ReloadWorld(analog); world.Mode = mode;
+            world.Frame(held: true, forward: 1);
+            for (int i = 0; i < 20 && world.Reloads == 0; i++) { world.Tick(); world.Frame(held: true, forward: 1); }
+            Require(world.Reloads == 1 && world.Shots == 1, "last round did not start one native reload");
+            world.Tick(); world.Frame(held: true, forward: 1);
+            Require(Walking(world) && world.Pawn.CurJob?.def.defName == "ReloadWeapon", "automatic reload stopped movement");
+            for (int i = 0; i < 45; i++) { world.Tick(); world.Frame(held: true, forward: 1); }
+            Require(mode == "Auto" ? world.Shots > 1 : world.Shots == 1,
+                "moving reload lost held Auto or manufactured a Single/Burst press");
+            Require(world.ResumedForeignAttacks == 0, "moving reload resumed an old attack job");
+        }
+    }
+    static void MovingReloadToggle()
+    {
+        foreach (bool analog in new[] { true, false })
+        {
+            using var world = ReloadWorld(analog); world.ReloadTicks = 30;
+            RimFront.RimFrontMod.Settings.movingReload = false;
+            world.Frame(reload: true, forward: 1); world.Tick(); var reload = world.Pawn.CurJob;
+            Require(!Walking(world), "disabled moving reload still walked");
+            RimFront.RimFrontMod.Settings.movingReload = true;
+            world.Frame(forward: 1); world.Tick(); Require(Walking(world), "enabling the option did not resume walking");
+            RimFront.RimFrontMod.Settings.movingReload = false;
+            world.Frame(forward: 1); world.Tick(); Require(!Walking(world) && world.Pawn.CurJob == reload, "disabling canceled reload or kept walking");
+            RimFront.RimFrontMod.Settings.movingReload = true;
+            world.Frame(forward: 1); world.Tick(); world.Frame(); world.Tick();
+            Require(!Walking(world) && world.Pawn.CurJob == reload, "WASD release failed to stop while preserving reload");
+        }
+    }
+    static void MovingReloadSafety()
+    {
+        foreach (bool analog in new[] { true, false })
+        {
+            using var world = ReloadWorld(analog); world.ReloadTicks = 100;
+            world.Frame(reload: true, forward: 1); world.Tick(); var reload = world.Pawn.CurJob;
+            world.Pawn.stances.stunner.Stunned = true;
+            world.Frame(forward: 1); world.Tick(); Require(!Walking(world), "stun allowed reload movement");
+            world.Pawn.stances.stunner.Stunned = false;
+            world.Frame(forward: 1); world.Tick(); Require(Walking(world), "walking did not resume after stun");
+            world.ExpireInput(); world.Tick(); Require(!Walking(world) && world.Pawn.CurJob == reload, "stale input kept walking or interrupted reload");
+            world.Frame(forward: 1); world.Tick();
+            world.Frame(release: true); Require(!Walking(world) && world.Pawn.CurJob == reload, "exit kept walking or canceled native reload");
+        }
+    }
+    static void MovingReloadForeign()
+    {
+        using var world = ReloadWorld(false);
+        world.SetExternalJob("ReloadWeapon"); world.ReloadRemaining = 100; world.Frame(forward: 1); world.Tick();
+        Require(!Walking(world), "unverified foreign reload gained movement");
+        world.SetExternalJob("Goto"); world.Pawn.pather.Moving = true;
+        world.Frame(); world.ExpireInput(); world.Tick();
+        Require(world.Pawn.pather.Moving, "stale reload input stopped a replacement foreign path");
     }
 
     static void StaleSingle()

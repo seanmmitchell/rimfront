@@ -10,8 +10,9 @@ foreach ($suite in @('JobPolicyTests', 'WindowIconTests', 'MovementTests', 'Inpu
     & $Dotnet run --project $project --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
     if ($LASTEXITCODE -ne 0) { throw "$suite failed ($LASTEXITCODE)." }
 }
+& (Join-Path $PSScriptRoot 'test-terrain-integration.ps1') -Dotnet $Dotnet -VerifyMutations
 # Package tests intentionally copy one mod DLL into both fixture slots. They test
 # archive contracts, not cross-version compatibility or a playable release ZIP.
 & (Join-Path $projectRoot 'tests/PackageTests/PackageTests.ps1') -ReferenceDll (Join-Path $projectRoot 'mod/1.6/Assemblies/RimFront.dll')
-Write-Host 'Portable CI passed: 1.6 build, firing scenarios/mutations, policy, movement, window, input and package contracts.'
+Write-Host 'Portable CI passed: 1.6 build, firing scenarios/mutations, policy, movement, window, input, terrain scenarios/mutations and package contracts.'
 Write-Host 'Not covered: 1.7 build/native helper suites, live Harmony/CE, GPU, or in-game smoke tests. Run verify-release.ps1 locally before release.'

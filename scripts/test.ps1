@@ -3,6 +3,7 @@ param([string]$Dotnet = 'dotnet', [string]$RimWorld17Dir = $env:RIMWORLD_17_DIR,
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 & (Join-Path $PSScriptRoot 'test-firing-loop.ps1') -Dotnet $Dotnet -VerifyMutations
+& (Join-Path $PSScriptRoot 'test-terrain-integration.ps1') -Dotnet $Dotnet -VerifyMutations
 & $Dotnet run --project (Join-Path $projectRoot 'tests/TerrainTests/TerrainTests.csproj') --configuration Release
 if ($LASTEXITCODE -ne 0) { throw "Terrain tests failed ($LASTEXITCODE)." }
 & $Dotnet run --project (Join-Path $projectRoot 'tests/JobPolicyTests/JobPolicyTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"

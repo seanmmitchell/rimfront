@@ -13,7 +13,7 @@ namespace RimFront
         internal const int MaximumCards = 4096, MaximumCandidates = 8192, MaximumBatches = 128;
         internal const float MaximumWidth = 3f, MaximumHeight = 4.1f;
         internal static float RenderRadius => NativeScene.ViewDistance + 2f;
-        static readonly List<Candidate> candidates = new List<Candidate>();
+        static readonly NearestCandidates<Plant> candidates = new NearestCandidates<Plant>(MaximumCandidates);
         static readonly Dictionary<Texture, Batch> batches = new Dictionary<Texture, Batch>();
         static readonly Vector2[] fallbackShape = { new Vector2(-.5f, .25f), new Vector2(-.32f, .75f), new Vector2(0, 1),
             new Vector2(.32f, .75f), new Vector2(.5f, .25f), new Vector2(0, 0) };
@@ -21,7 +21,6 @@ namespace RimFront
         static float yaw;
         static int frame;
         static bool warned;
-        struct Candidate { internal Plant Plant; internal float Distance; }
 
         internal sealed class Buffers
         {
@@ -55,22 +54,16 @@ namespace RimFront
         internal static void Queue(Plant plant, float distanceSquared)
         {
             if (plant == null || !plant.Spawned || !Finite(distanceSquared) || distanceSquared < 0
-                || distanceSquared > RenderRadius * RenderRadius || candidates.Count >= MaximumCandidates) return;
-            candidates.Add(new Candidate { Plant = plant, Distance = distanceSquared });
-        }
-        static int Compare(Candidate a, Candidate b)
-        {
-            int distance = a.Distance.CompareTo(b.Distance);
-            return distance != 0 ? distance : a.Plant.thingIDNumber.CompareTo(b.Plant.thingIDNumber);
+                || distanceSquared > RenderRadius * RenderRadius) return;
+            candidates.Offer(plant, distanceSquared, plant.thingIDNumber);
         }
         internal static void Draw(Map map)
         {
-            candidates.Sort(Compare);
             int remaining = MaximumCards;
-            foreach (Candidate candidate in candidates)
+            foreach (NearestCandidates<Plant>.Entry candidate in candidates.Ordered())
             {
                 if (remaining == 0) break;
-                Plant plant = candidate.Plant;
+                Plant plant = candidate.Value;
                 if (!plant.Spawned || plant.Map != map || plant.Position.Fogged(map)) continue;
                 try
                 {

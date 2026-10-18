@@ -5,7 +5,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.Loader;
 
-internal static class Program
+internal static partial class Program
 {
     const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
     static int checks;
@@ -64,6 +64,7 @@ internal static class Program
         Check((2 * radius + 1) * (2 * radius + 1) <= maximum, "cache neighborhood fits declared budget");
         Check((int)scene.GetField("ChunkSize", Flags).GetRawConstantValue() > 0, "chunk size positive");
         TestMountainsAndRange(assembly);
+        TestChunkRebuildOrder(assembly);
         TestLighting(assembly);
         TestWeather(assembly);
         TestWeapons(assembly);

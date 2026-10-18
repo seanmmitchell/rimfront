@@ -6,12 +6,12 @@ RimFront captures input each frame and consumes it on game ticks. Rendering, mes
 
 | System | Bound / scheduling |
 | --- | --- |
-| Static scene | 121 / 289 / 441 chunks of 12 × 12 cells at 60 / 90 / 120 tiles; at most one missing-chunk build per frame |
-| Static refresh | Dirty notifications prioritize changes; one cached chunk checked every 100 ms; fallback full cycle up to 12.1 / 28.9 / 44.1 seconds at full cache size |
+| Static scene | 121 / 289 / 441 chunks of 12 × 12 cells at 60 / 90 / 120 tiles; at most one chunk build/rebuild per frame |
+| Static refresh | Direct edits first, then nearest dirty profiles, then cache expansion; one cached chunk checked every 100 ms; fallback full cycle up to 12.1 / 28.9 / 44.1 seconds at full cache size |
 | Lighting | At most one cached chunk relit per frame; 16 temporary muzzle lights |
 | Pawn appearance | 64 cached appearances plus nine shared fallback families; two refresh attempts and one articulated-rig build per frame |
 | Pawn detail | Up to 16 articulated pawns within 14 cells; assembled models otherwise |
-| Vegetation | Up to 4,096 plant cards from 8,192 candidates within the configured view range plus a two-cell sprite margin; 128 reusable texture batches; nearest plants prioritized |
+| Vegetation | Up to 4,096 plant cards from 8,192 candidates within the configured view range plus a two-cell sprite margin; 128 reusable texture batches; a bounded max heap retains the nearest candidates before distance sorting |
 | Pawn observation | 256 animation observations; 128 reload observations |
 | Weapons / shields | Twelve assembled weapon families, 36 reload parts, four hand meshes; 32 physical shield meshes |
 | Projectiles / impacts | 96 tracked projectiles, 128 tracer entries, 192 impact particles, 64 contact marks |
@@ -21,7 +21,7 @@ RimFront captures input each frame and consumes it on game ticks. Rendering, mes
 | Crosshair query | 4,096 cells, 3,072 things, 256 traversed ray segments, 65,536 triangle checks; 3,072-entry CPU geometry cache |
 | Pawn indicators | 24 labels, 512 retained candidates; up to 512 pawns scanned per render frame |
 
-Mountain profiles keep one rock mask and height field for the active map. A two-pass distance transform and summed-area density calculation take linear time in map cells on entry and after rock occupancy changes. Non-rock mesh changes do not rebuild the profile. A profile revision dirties cached chunks and invalidates CPU rock geometry; meshes still rebuild at most once per frame. Shared world-grid corner heights keep chunk borders joined. The profile includes unexplored rock bulk and caps height at 24 tiles. Unknown rock and ore share a uniform exterior tint, while opaque fog obscures underground cells. Exterior surfaces above the 2.55-tile ceiling receive sky lighting.
+Mountain profiles keep one rock mask and height field for the active map. A two-pass distance transform and summed-area density calculation take linear time in map cells on entry and after rock occupancy changes. Non-rock mesh changes do not rebuild the profile. A profile revision dirties cached chunks. Each chunk captures its own immutable 13 × 13 corner grid and rock occupancy, then publishes that snapshot only after replacing its mesh. Aim/projectile geometry uses the published snapshot and changes revision with that mesh. Eviction removes the snapshot. Chunks still rebuild at most once per frame, so neighboring chunks can temporarily show different revisions while updates settle. The profile includes unexplored rock bulk and caps height at 24 tiles. Unknown rock and ore share a uniform exterior tint, while opaque fog obscures underground cells. Exterior surfaces above the 2.55-tile ceiling receive sky lighting.
 
 Live pawns and door leaves update separately from static chunks. Shared family fallback models are created lazily outside the appearance refresh budget, so cold entry into a mixed-species scene can create several models in one frame. Geometry/color setters can cause full Waylith mesh uploads; incremental relighting still has a cost. Transparent shields add blending work. Dense blood and over-budget animation use simplified presentation.
 

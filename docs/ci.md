@@ -28,7 +28,11 @@ Run the same gate locally with `./scripts/test-portable.ps1` using .NET 10:
 - The 1.6 mod builds against the pinned reference and Harmony packages.
 - The actual firing controller passes named simulated-engine scenarios and detects
   deliberately restored regressions, including held fire, reloads, and empty ammo.
-- Job policy, movement, window lifecycle, and input helper tests pass.
+- Job policy, movement, window lifecycle, input, and terrain/range helper tests pass.
+- Five production terrain/aim scenarios cover published mountain geometry, per-chunk
+  publication, above-fog contacts, underground privacy, and nearest-plant admission.
+  Three isolated mutations must compile and fail their corresponding named scenario.
+  These tests simulate map boundaries and use managed math, without a renderer.
 - Package contracts reject stale/extra files. These use the 1.6 DLL as a fixture
   in both version slots; they do not build or validate 1.7.
 

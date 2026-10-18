@@ -108,3 +108,7 @@ Retain failed cases as reproducible issues. Passing startup or a small subset do
 - Test View range at 0%, 50%, 100% (60, 90, 120 tiles), including changes during possession. Check terrain, doors, distant pawns, vegetation, labels and effects; verify targets beyond 30 tiles can be selected within native weapon range and fog still blocks selection.
 - Face diagonally and walk across chunk boundaries at every slider stop. Check distant geometry after the cache warms. Shrink the slider and verify excess chunks leave the cache. Save/restart to verify the slider persists, and exit possession to verify the original camera clip plane is restored.
 - Measure cold/warm frame times and memory at each range on both 1.6 and 1.7. The default cache can take 121 frames to fill; the largest can take 441. This PR has no live GPU or gameplay certification.
+
+- During ongoing movement/cache expansion, mine rock near the observer. Confirm direct edits update before distant missing chunks, and aim/projectile contacts follow each displayed slope throughout the remaining rebuilds.
+- Aim above fog at a mountain exterior. Confirm the crosshair reaches the slope and labels it only as a mountain; low rays still stop at fog and never identify hidden ore, pawns or objects.
+- Move through dense vegetation at 120 tiles with more than 8,192 candidates in range. Confirm nearby plants remain visible when later chunks are visited. The 4,096-card presentation limit remains; this check specifically covers nearest-candidate retention.

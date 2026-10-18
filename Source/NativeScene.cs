@@ -13,6 +13,7 @@ namespace RimFront
     internal static class NativeScene
     {
         internal const int ChunkSize = 12;
+        internal const float FogHeight = 5f;
         internal static int ChunkRadius => ViewRange.ChunkRadiusFor(RimFrontMod.Settings?.extraViewRange ?? 0);
         internal const int MaximumChunks = ViewRange.MaximumChunks;
         internal static int DrawCalls { get; private set; }
@@ -86,34 +87,14 @@ namespace RimFront
                 if (Math.Abs(pair.Value.X - centerX) > ChunkRadius || Math.Abs(pair.Value.Z - centerZ) > ChunkRadius) expired.Add(pair.Key);
             foreach (int key in expired) { chunks[key].Dispose(); chunks.Remove(key); }
 
-            // Fill the nearest missing chunk first, at most ONE build per frame. Once warm,
-            // examine only one 12x12 chunk every 100ms. Unchanged hashes keep their GPU mesh.
-            Chunk selected = null;
-            int bestDistance = int.MaxValue;
-            for (int z = centerZ - ChunkRadius; z <= centerZ + ChunkRadius; z++)
-                for (int x = centerX - ChunkRadius; x <= centerX + ChunkRadius; x++)
-                {
-                    if (x < 0 || z < 0 || x * ChunkSize >= map.Size.x || z * ChunkSize >= map.Size.z) continue;
-                    int key = Key(x, z), distance = (x - centerX) * (x - centerX) + (z - centerZ) * (z - centerZ);
-                    if (!chunks.ContainsKey(key) && distance < bestDistance) { selected = new Chunk(x, z); bestDistance = distance; }
-                }
+            // One rebuild per frame. Direct map changes come first, then nearby
+            // profile changes, then missing chunks; cache expansion cannot starve edits.
             float now = Time.realtimeSinceStartup;
+            Chunk selected = SelectChunk(map, centerX, centerZ, now);
             if (selected != null)
             {
                 selected.Refresh(map, now);
-                chunks.Add(Key(selected.X, selected.Z), selected);
-            }
-            else
-            {
-                foreach (Chunk chunk in chunks.Values)
-                    if (chunk.Dirty && (selected == null || chunk.CheckedAt < selected.CheckedAt)) selected = chunk;
-                if (selected != null) selected.Refresh(map, now);
-                else if (now >= nextRefresh)
-                {
-                    foreach (Chunk chunk in chunks.Values) if (selected == null || chunk.CheckedAt < selected.CheckedAt) selected = chunk;
-                    if (selected != null) selected.Refresh(map, now);
-                    nextRefresh = now + .1f;
-                }
+                chunks[Key(selected.X, selected.Z)] = selected;
             }
 
             // Recolor at most one cached mesh per frame. Unchanged lighting needs no
@@ -174,6 +155,34 @@ namespace RimFront
         internal static float PawnTargetHeight(Pawn pawn) { return GetPawnHeight(pawn); }
         internal static float GetPawnWidth(Pawn pawn) { return NativePawnModels.BaseWidth(NativePawnModels.ClassifyPawn(pawn)) * PawnScale(pawn); }
 
+        static Chunk SelectChunk(Map map, int centerX, int centerZ, float now)
+        {
+            Chunk selected = null;
+            int bestDistance = int.MaxValue;
+            foreach (Chunk chunk in chunks.Values)
+            {
+                if (!chunk.Dirty) continue;
+                int distance = (chunk.X - centerX) * (chunk.X - centerX) + (chunk.Z - centerZ) * (chunk.Z - centerZ);
+                if (selected == null || (chunk.DirectlyDirty && !selected.DirectlyDirty)
+                    || (chunk.DirectlyDirty == selected.DirectlyDirty && (distance < bestDistance
+                        || (distance == bestDistance && chunk.CheckedAt < selected.CheckedAt))))
+                { selected = chunk; bestDistance = distance; }
+            }
+            if (selected != null) return selected;
+            for (int z = centerZ - ChunkRadius; z <= centerZ + ChunkRadius; z++)
+                for (int x = centerX - ChunkRadius; x <= centerX + ChunkRadius; x++)
+                {
+                    if (x < 0 || z < 0 || x * ChunkSize >= map.Size.x || z * ChunkSize >= map.Size.z || chunks.ContainsKey(Key(x, z))) continue;
+                    int distance = (x - centerX) * (x - centerX) + (z - centerZ) * (z - centerZ);
+                    if (distance < bestDistance) { selected = new Chunk(x, z); bestDistance = distance; }
+                }
+            if (selected != null || now < nextRefresh) return selected;
+            foreach (Chunk chunk in chunks.Values)
+                if (selected == null || chunk.CheckedAt < selected.CheckedAt) selected = chunk;
+            nextRefresh = now + .1f;
+            return selected;
+        }
+
         static int Key(int x, int z) { return x | (z << 16); }
 
         internal static void Invalidate(MapDrawer drawer, IntVec3 cell)
@@ -186,7 +195,7 @@ namespace RimFront
             {
                 if (x < 0 || z < 0) continue;
                 Chunk chunk;
-                if (chunks.TryGetValue(Key(x / ChunkSize, z / ChunkSize), out chunk)) chunk.Dirty = true;
+                if (chunks.TryGetValue(Key(x / ChunkSize, z / ChunkSize), out chunk)) chunk.Dirty = chunk.DirectlyDirty = true;
             }
         }
 
@@ -252,7 +261,7 @@ namespace RimFront
             internal Mesh Mesh;
             internal readonly List<Thing> Dynamic = new List<Thing>();
             internal float CheckedAt;
-            internal bool Dirty;
+            internal bool Dirty, DirectlyDirty;
             internal float LightCheckedAt = -1f;
             internal bool WasFlashed;
             Color[] baseColors, litColors;
@@ -260,7 +269,7 @@ namespace RimFront
             int signature;
             bool built;
             internal Chunk(int x, int z) { X = x; Z = z; }
-            internal void Dispose() { Destroy(Mesh); Mesh = null; Dynamic.Clear(); baseColors = litColors = null; lightPositions = null; }
+            internal void Dispose() { NativeMountains.Remove(X, Z); Destroy(Mesh); Mesh = null; Dynamic.Clear(); baseColors = litColors = null; lightPositions = null; }
 
             internal void Relight(float now)
             {
@@ -281,7 +290,7 @@ namespace RimFront
             internal void Refresh(Map map, float now)
             {
                 CheckedAt = now;
-                Dirty = false;
+                Dirty = DirectlyDirty = false;
                 Dynamic.Clear();
                 int hash = (bloodTrailsVisible ? 17 : 19) ^ NativeMountains.Revision;
                 for (int z = Z * ChunkSize; z < Math.Min(map.Size.z, (Z + 1) * ChunkSize); z++)
@@ -315,6 +324,7 @@ namespace RimFront
                     }
                 if (built && hash == signature) return;
                 Builder builder = new Builder();
+                MountainSurfaceCache.Snapshot mountain = NativeMountains.Capture(X, Z);
                 int bloodBudget = MaximumBloodSplatsPerChunk;
                 for (int z = Z * ChunkSize; z < Math.Min(map.Size.z, (Z + 1) * ChunkSize); z++)
                     for (int x = X * ChunkSize; x < Math.Min(map.Size.x, (X + 1) * ChunkSize); x++)
@@ -323,9 +333,9 @@ namespace RimFront
                         Vector3 center = new Vector3(x + .5f, 0, z + .5f);
                         if (cell.Fogged(map))
                         {
-                            builder.Box(center + new Vector3(0, 2.5f, 0), new Vector3(1, 5, 1), Fog);
+                            builder.Box(center + new Vector3(0, FogHeight * .5f, 0), new Vector3(1, FogHeight, 1), Fog);
                             foreach (Thing rock in map.thingGrid.ThingsListAtFast(cell))
-                                if (rock.Position == cell && NativeMountains.IsRock(rock)) NativeMountains.Add(builder, rock, true);
+                                if (rock.Position == cell && NativeMountains.IsRock(rock)) NativeMountains.Add(builder, rock, true, mountain);
                             continue;
                         }
                         string terrain = cell.GetTerrain(map).defName.ToLowerInvariant();
@@ -345,11 +355,12 @@ namespace RimFront
                                     if (bloodThings++ < MaximumBloodThingsPerCell && bloodBudget > 0)
                                         AddBloodFilth(builder, blood, bloodDefinitions[thing.def], ground, ref bloodBudget);
                                 }
-                                else AddThing(builder, thing);
+                                else AddThing(builder, thing, mountain);
                             }
                     }
                 Mesh replacement = builder.Create("RimFront chunk " + X + "," + Z);
                 Destroy(Mesh); Mesh = replacement; signature = hash; built = true;
+                NativeMountains.Publish(mountain);
                 baseColors = builder.Colors.ToArray(); litColors = new Color[baseColors.Length];
                 lightPositions = builder.LightingPositions.ToArray();
                 Relight(now);
@@ -366,10 +377,10 @@ namespace RimFront
             return Mathf.Clamp(Mathf.Floor(Mathf.Clamp01(growth) * 8f) / 8f, .15f, 1f);
         }
 
-        internal static void AddThing(Builder b, Thing thing)
+        internal static void AddThing(Builder b, Thing thing, MountainSurfaceCache.Snapshot mountain = null)
         {
             if (thing is Plant plant) { NativeVegetation.AppendAimGeometry(b, plant); return; }
-            if (NativeMountains.IsRock(thing)) { NativeMountains.Add(b, thing); return; }
+            if (NativeMountains.IsRock(thing)) { NativeMountains.Add(b, thing, false, mountain); return; }
             Vector3 pos = thing.DrawPos; pos.y = .04f;
             Quaternion rotation = Quaternion.Euler(0, thing.Rotation.AsAngle, 0);
             b.Origin = pos; b.Rotation = rotation;

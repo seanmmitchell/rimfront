@@ -9,6 +9,7 @@ namespace RimFront
         static bool[] rocks;
         static float[] heights;
         static bool dirty;
+        static readonly MountainSurfaceCache surfaces = new MountainSurfaceCache();
         internal static int Revision { get; private set; }
 
         internal static bool IsRock(Thing thing) => thing is Building && thing.def.building != null
@@ -29,6 +30,7 @@ namespace RimFront
         internal static bool Update(Map world)
         {
             if (map == world && !dirty) return false;
+            if (map != world) surfaces.Clear();
             map = world;
             int width = world.Size.x, depth = world.Size.z;
             rocks = new bool[width * depth];
@@ -37,16 +39,21 @@ namespace RimFront
             dirty = false; Revision++;
             return true;
         }
-        internal static void Add(NativeScene.Builder b, Thing thing, bool fogged = false)
+        internal static MountainSurfaceCache.Snapshot Capture(int x, int z)
+            => new MountainSurfaceCache.Snapshot(heights, map.Size.x, map.Size.z, x, z, Revision);
+        internal static void Publish(MountainSurfaceCache.Snapshot snapshot) => surfaces.Publish(snapshot);
+        internal static void Remove(int x, int z) => surfaces.Remove(x, z);
+        internal static int GeometryRevision(Thing thing)
+            => map == thing.Map ? surfaces.AtCell(thing.Position.x, thing.Position.z)?.Revision ?? -1 : -1;
+        internal static void Add(NativeScene.Builder b, Thing thing, bool fogged = false, MountainSurfaceCache.Snapshot snapshot = null)
         {
-            if (map != thing.Map || heights == null) Update(thing.Map);
+            if (map != thing.Map) return;
             int x = thing.Position.x, z = thing.Position.z;
-            float a = MountainProfile.Corner(heights, map.Size.x, map.Size.z, x, z);
-            float c = MountainProfile.Corner(heights, map.Size.x, map.Size.z, x + 1, z + 1);
-            float d = MountainProfile.Corner(heights, map.Size.x, map.Size.z, x, z + 1);
-            float e = MountainProfile.Corner(heights, map.Size.x, map.Size.z, x + 1, z);
-            // Unknown ore and rock types share one exterior tint; the fog volume still
-            // obscures the underground cells. Hidden bulk must contribute to peaks.
+            snapshot = snapshot ?? surfaces.AtCell(x, z);
+            if (snapshot == null || !snapshot.Contains(x, z)) return; // A missing chunk has no displayed mountain.
+            float a = snapshot.Corner(x, z), c = snapshot.Corner(x + 1, z + 1);
+            float d = snapshot.Corner(x, z + 1), e = snapshot.Corner(x + 1, z);
+            // Unknown ore and rock types share one exterior tint.
             AddCell(b, x, z, a, e, c, d, fogged ? new Color(.58f, .60f, .53f) : thing.DrawColor);
         }
         internal static void AddCell(NativeScene.Builder b, int x, int z, float h00, float h10, float h11, float h01, Color color)
@@ -61,6 +68,6 @@ namespace RimFront
             b.Triangle(bc, c, d, color * .90f); b.Triangle(bc, d, bd, color * .90f);
             b.Triangle(bd, d, a, color * .68f); b.Triangle(bd, a, ba, color * .68f);
         }
-        internal static void Dispose() { map = null; rocks = null; heights = null; dirty = false; Revision = 0; }
+        internal static void Dispose() { map = null; rocks = null; heights = null; dirty = false; Revision = 0; surfaces.Clear(); }
     }
 }

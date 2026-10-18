@@ -57,7 +57,7 @@ Disable **True analog movement** under **Options → Mod settings → RimFront**
 
 ## Scene, equipment and effects
 
-Natural rock and ore formations render as joined, faceted mountains. Height follows local rock density and distance from exposed edges: broad dense masses rise higher than isolated outcrops. Mining updates the profile. Unexplored rock contributes to the mountain silhouette with a uniform exterior tint; opaque fog still obscures underground cells and unrevealed ore types. Constructed walls and loose stone items keep their existing models.
+Natural rock and ore formations render as joined, faceted mountains. Height follows local rock density and distance from exposed edges: broad dense masses rise higher than isolated outcrops. Mining updates the profile. Unexplored rock contributes to the mountain silhouette with a uniform exterior tint; opaque fog still obscures underground cells and unrevealed ore types. Above-fog mountain exteriors can be aimed at as anonymous surface contacts. Mountain collision follows each displayed chunk snapshot while mining updates settle. Constructed walls and loose stone items keep their existing models.
 
 View range defaults to **60 tiles**, twice the original 30. Under **Options → Mod settings → RimFront → View range**, the additional-range slider selects **0% / 50% / 100%** for **60 / 90 / 120 tiles**. It applies immediately to the camera, scenery, pawns, vegetation, effects and crosshair selection. Native weapon range remains authoritative. Longer ranges increase rendering work, memory and cache warmup time.
 

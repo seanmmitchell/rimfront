@@ -24,6 +24,8 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 
 The entry click does not fire. The HUD shows health, weapon, ammunition, fire mode, movement mode, FPS estimate and rendering counters. Focus loss, a blocking dialog, loss of pawn eligibility, a map change or an incompatible external job releases control. Exit restores camera, cursor, subcamera, background-execution and fire-at-will settings. Possession is not saved. A Windows safeguard preserves existing game-window icons around transitions; its live behavior still needs verification.
 
+The top-right minimap follows the controlled pawn in a north-up tactical view. White marks you and your facing direction; gold marks the crosshair's selected aim point (hollow for an empty point), joined to you by an aim line. It normally shows 25 tiles in every direction. Distant aim pans and widens the view to retain that neighbourhood and four tiles of context around the target. Framing follows the same weapon-range, cover and fog limits as shooting; it does not extend weapon or first-person view range. Movement between refreshes retains at least 20 tiles on every side. Terrain, snow, buildings and door state refresh five times per second, including while paused. Visible pawn dots use the existing relationship colors; walls and fog hide them. Outside-map space remains dark at map edges. The minimap releases its texture and map references on exit.
+
 ## Combat and fire modes
 
 The crosshair selects the nearest displayed pawn, object, terrain or ceiling, or an empty point within visible map and weapon range. Selection has no faction filter: deliberate friendly fire retains native consequences. Melee and unarmed attacks require an adjacent target and do not start a chase.

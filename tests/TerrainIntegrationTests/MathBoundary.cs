@@ -1,6 +1,7 @@
 // Managed math boundary for portable CI. NativeGeometryTests separately uses installed 1.7 math.
 using N = System.Numerics.Vector3;
 namespace UnityEngine {
+public static class Time { public static int frameCount; }
 public record struct Vector3(float x,float y,float z) {
  public static Vector3 zero=>new(0,0,0);
  public float sqrMagnitude=>x*x+y*y+z*z;

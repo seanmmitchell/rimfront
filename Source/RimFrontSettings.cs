@@ -19,6 +19,7 @@ namespace RimFront
         public bool impactEffects = true;
         public bool pawnIndicators = true;
         public bool traceFiring = false;
+        public bool minimap = true;
         Vector2 scrollPosition;
         float contentHeight = 600f;
         public override void ExposeData()
@@ -38,6 +39,7 @@ namespace RimFront
             Scribe_Values.Look(ref impactEffects, "impactEffects", true);
             Scribe_Values.Look(ref pawnIndicators, "pawnIndicators", true);
             Scribe_Values.Look(ref traceFiring, "traceFiring", false);
+            Scribe_Values.Look(ref minimap, "minimap", true);
             base.ExposeData();
         }
         internal void Draw(Rect rect)
@@ -62,6 +64,8 @@ namespace RimFront
             listing.Label("Hold Left Ctrl to crouch behind cover. Crouching also halves walking speed.");
             listing.Gap();
             listing.Label("Character rendering");
+            listing.CheckboxLabeled("Show minimap", ref minimap,
+                "Show a cached native colony view with a lightweight pawn overlay. Disable to remove its rendering cost. Applies immediately.");
             listing.CheckboxLabeled("Use viewpoint-based 2D characters", ref spritePawns,
                 "Replace nearby 3D characters with upright native sprites. Front, side and back artwork follows your viewpoint. Applies immediately; disable to restore 3D models. First-person hands stay 3D. Unavailable artwork falls back to 3D.");
             listing.CheckboxLabeled("Animate nearby 3D pawns", ref animatePawns,

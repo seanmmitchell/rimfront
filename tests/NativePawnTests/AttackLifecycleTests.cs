@@ -38,6 +38,8 @@ internal static partial class Program
             => (bool)progressing.Invoke(null, new object[] { busy, changed, remaining, previous, shot, oldShot });
         Check(Progress(true, false, 900, 901, 10, 10), "a long warmup progresses while its native ticks count down");
         Check(!Progress(true, false, 900, 900, 10, 10), "a permanently busy stance with frozen native ticks cannot defeat the stuck-attack watchdog");
+        Check(!Progress(true, false, -7, -6, 10, 10), "negative warmup countdown is not progress");
+        Check(!Progress(true, true, 0, 1, 10, 10), "an already expired replacement stance is not progress");
         Check(Progress(true, true, 900, 0, 10, 10), "a newly entered native stance starts a fresh progress window");
         Check(Progress(false, false, 0, 0, 11, 10), "a real native shot advances progress independently of stance visibility");
         Check(Cool(true, 6, 90) == 90, "canceling between burst rounds cannot exploit a short inter-round cooldown");
@@ -49,6 +51,28 @@ internal static partial class Program
             Check((bool)resetPolicy.Invoke(null, new object[] { success, burst }) == (!success || burst),
                 "only successful non-bursting completion preserves CE repeating state; interruption or live burst always resets");
         TestOwnedCleanupOrdering(assembly);
+        TestNativeMovementHook(assembly);
+    }
+
+    static void TestNativeMovementHook(Assembly assembly)
+    {
+        // Compile/install the actual transpiler against this machine's native
+        // PatherTick IL; the old fixture did not exercise Harmony at all.
+        Type harmonyType = Assembly.Load("0Harmony").GetType("HarmonyLib.Harmony", true);
+        object harmony = Activator.CreateInstance(harmonyType, new object[] { "rimfront.tests.path-fire" });
+        try
+        {
+            object processor = harmonyType.GetMethod("CreateClassProcessor").Invoke(harmony,
+                new[] { (object)assembly.GetType("RimFront.NativePathFire", true) });
+            processor.GetType().GetMethod("Patch").Invoke(processor, null);
+            Type stance = Assembly.Load("Assembly-CSharp").GetType("Verse.Stance_Warmup", true);
+            object busy = RuntimeHelpers.GetUninitializedObject(stance);
+            Check((bool)stance.GetProperty("StanceBusy", Flags).GetValue(busy),
+                "real native busy getter stays true while the pathfinding-only exception is installed");
+            Check(assembly.GetType("RimFront.MovingFireStance", true).GetCustomAttributes(false).Length == 0,
+                "moving fire does not install a global stance-busy hook");
+        }
+        finally { harmonyType.GetMethod("UnpatchAll").Invoke(harmony, new object[] { "rimfront.tests.path-fire" }); }
     }
 
     static void TestOwnedCleanupOrdering(Assembly assembly)

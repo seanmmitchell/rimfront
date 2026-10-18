@@ -73,6 +73,8 @@ namespace RimFront
             // and AttackStatic's optional auto-queue of nearby identical Things.
             aim.Job.targetA = target.Point.ToIntVec3();
             VerbTarget?.SetValue(aim.Verb, aim.Job.targetA);
+            if (pawn.stances?.curStance is Stance_Warmup warmup && warmup.verb == aim.Verb)
+                warmup.focusTarg = aim.Job.targetA;
         }
         internal static void Clear(Pawn pawn = null)
         {
@@ -327,6 +329,11 @@ namespace RimFront
             if (__state != null && ReferenceEquals(current, __state.Context))
             {
                 VerbTarget.SetValue(__instance, __state.Target);
+                // CE can create its additional aiming stance while the temporary
+                // Thing target is installed. Keep the warmup cell-owned as well:
+                // despawning/downing the old Thing must not cancel a new crosshair aim.
+                if (current.Job != null && current.Pawn?.stances?.curStance is Stance_Warmup warmup && warmup.verb == __instance)
+                    warmup.focusTarg = current.Job.targetA;
                 current.ShotSource = __state.Source; current.HasShotSource = __state.HasSource;
             }
             return __exception;

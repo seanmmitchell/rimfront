@@ -4,5 +4,6 @@
     <Compile Include="Program.cs" />
     <Compile Include="../../Source/MinimapRenderState.cs" Link="MinimapRenderState.cs" />
     <Compile Include="../../Source/MinimapView.cs" Link="MinimapView.cs" />
+    <Compile Include="../../Source/MinimapRefreshPolicy.cs" Link="MinimapRefreshPolicy.cs" />
   </ItemGroup>
 </Project>

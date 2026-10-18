@@ -92,8 +92,16 @@ static class Program
         Require(NativeAimTargeting.TrySelect(pawn,0,0,60,out var low),"Low fog-boundary aim should retain the safe visible endpoint");
         Require(!low.HitThing && !low.HitSurface && !low.Point.ToIntVec3().Fogged(map) && low.Point.z<40,"Ground ray exposed hidden rock or occupants");
         Require(NativeAimTargeting.TrySelect(pawn,0,-.25f,60,out var high) && high.Label=="mountain","Hidden occupant changed exterior selection");
+        var queries=typeof(NativeAimTargeting).GetField("query",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static);
+        int before=(int)queries.GetValue(null);
+        Require(NativeAimTargeting.TrySelect(pawn,0,-.25f,60,out _) && (int)queries.GetValue(null)==before,
+            "Identical frame/tick input repeated the expensive geometry query");
+        Time.frameCount++;
+        Require(NativeAimTargeting.TrySelect(pawn,0,-.25f,60,out _) && (int)queries.GetValue(null)>before,
+            "Next render frame reused stale aim geometry");
         Require(!NativeAimTargeting.TrySelect(pawn,0,-.25f,10,out var shortHit) || shortHit.Distance<=10,"Exterior aiming bypassed native weapon range");
         map.Fog.Clear();
+        Find.TickManager.TicksGame++; // Fog changed on the next simulated game tick.
         Require(NativeAimTargeting.TrySelect(pawn,0,-.25f,60,out var known) && known.HitThing && known.Target.Thing!=null,"Revealed rock lost ordinary Thing selection");
         var emptyMap=new Map(); pawn.Map=emptyMap; pawn.Position=new(100,0,100);
         var continuousEye=new Vector3(100.99f,1.55f,100.99f);

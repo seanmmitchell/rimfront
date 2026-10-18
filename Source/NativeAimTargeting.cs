@@ -36,6 +36,13 @@ namespace RimFront
         static Map cachedMap;
         static int query;
         static bool warned;
+        static Pawn samplePawn;
+        static Map sampleMap;
+        static Vector3 sampleEye;
+        static float sampleYaw, samplePitch, sampleRange;
+        static int sampleFrame = -1, sampleTick = -1;
+        static bool sampleValid;
+        static TargetInfo sample;
         static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
         static bool Finite(Vector3 value) => Finite(value.x) && Finite(value.y) && Finite(value.z);
 
@@ -190,7 +197,14 @@ namespace RimFront
         {
             Vector3 eye = shooter == null ? Vector3.zero : shooter.DrawPos; eye.y = NativeView.EyeHeight;
             if (NativeView.Active && NativeView.ControlledPawn == shooter) eye = NativeView.RenderPosition;
-            return TrySelectFrom(shooter, eye, yaw, pitch, maxRange, true, out result);
+            int tick = Find.TickManager?.TicksGame ?? -1;
+            if (samplePawn == shooter && sampleMap == shooter?.Map && sampleFrame == Time.frameCount && sampleTick == tick
+                && sampleEye.Equals(eye) && sampleYaw == yaw && samplePitch == pitch && sampleRange == maxRange)
+            { result = sample; return sampleValid; }
+            bool valid = TrySelectFrom(shooter, eye, yaw, pitch, maxRange, true, out result);
+            samplePawn = shooter; sampleMap = shooter?.Map; sampleEye = eye; sampleYaw = yaw; samplePitch = pitch; sampleRange = maxRange;
+            sampleFrame = Time.frameCount; sampleTick = tick; sample = result; sampleValid = valid;
+            return valid;
         }
         internal static bool TrySelectFrom(Pawn shooter, Vector3 eye, float yaw, float pitch, float maxRange,
             bool constrainCellRange, out TargetInfo result)
@@ -322,6 +336,6 @@ namespace RimFront
             return Finite(range) && range >= 0 && x * x + z * z <= (double)range * range;
         }
         internal static void Dispose()
-        { cache.Clear(); visited.Clear(); seen.Clear(); cachedMap = null; query = 0; }
+        { cache.Clear(); visited.Clear(); seen.Clear(); cachedMap = null; query = 0; samplePawn = null; sampleMap = null; sample = default; sampleValid = false; sampleFrame = sampleTick = -1; }
     }
 }

@@ -7,7 +7,7 @@ using Verse.AI;
 namespace RimFront
 {
     // Session-local bracing. CE owns setup time and every gameplay modifier.
-    internal static class NativeBipods
+    internal static class NativeWeaponBrace
     {
         static readonly Type Bipod = AccessTools.TypeByName("CombatExtended.BipodComp");
         static readonly Type Driver = AccessTools.TypeByName("CombatExtended.JobDriver_SetUpBipod");
@@ -51,7 +51,7 @@ namespace RimFront
             if (patched || Bipod == null) return;
             MethodInfo getter = Bipod.GetProperty("ShouldSetUp")?.GetGetMethod();
             if (getter == null || getter.ReturnType != typeof(bool)) throw new NotSupportedException("CE bipod setup contract");
-            new Harmony("rimfront.bipods").Patch(getter, prefix: new HarmonyMethod(typeof(NativeBipods), nameof(ShouldSetUp)));
+            new Harmony("rimfront.bipods").Patch(getter, prefix: new HarmonyMethod(typeof(NativeWeaponBrace), nameof(ShouldSetUp)));
             patched = true;
         }
         // CE auto-setup must not immediately undo an explicit V fold. Scope to the exact

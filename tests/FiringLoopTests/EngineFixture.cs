@@ -48,12 +48,12 @@ public sealed class FiringWorld : IDisposable
     }
 
     public void Frame(bool held = false, bool reload = false, bool cycleMode = false, bool paused = false,
-        float forward = 0, float strafe = 0, bool release = false, bool bipod = false)
+        float forward = 0, float strafe = 0, bool release = false, bool brace = false)
     {
         Paused = paused; forcedAge = null;
         NativeView.FireHeld = held;
         NativeView.Command = new InputCommand { action = release ? "release" : "input", fire = held && !paused,
-            reload = reload, cycleFireMode = cycleMode, toggleBipod = bipod, forward = forward, strafe = strafe };
+            reload = reload, cycleFireMode = cycleMode, toggleBrace = brace, forward = forward, strafe = strafe };
         Game.GameComponentUpdate();
         AssertNoErrors();
     }

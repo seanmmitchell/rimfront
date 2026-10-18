@@ -77,26 +77,26 @@ internal static class Program
     {
         using var w = Loaded(); var comp = AttachBipod(w);
         w.Ammo = 1; w.MagazineSize = 6; w.Reserve = 12;
-        w.Frame(bipod: true); w.Tick(); w.Frame(); w.Tick(6);
-        Require(RimFront.NativeBipods.IsMounted(w.Pawn), "native bipod completed before reload");
+        w.Frame(brace: true); w.Tick(); w.Frame(); w.Tick(6);
+        Require(RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "native bipod completed before reload");
         w.Frame(reload: true); w.Tick();
         var reload = w.Pawn.CurJob;
         Require(reload?.def.defName == "ReloadWeapon", "reload starts while mounted");
-        w.Frame(bipod: true); w.Tick();
+        w.Frame(brace: true); w.Tick();
         Require(w.Pawn.CurJob == reload && comp.IsSetUpRn, "V during reload preserves exact native reload and deployment");
         w.Frame(); w.Tick(8);
-        Require(w.Ammo == 6 && w.Reserve == 7 && RimFront.NativeBipods.IsMounted(w.Pawn), "mounted reload completes with native ammo accounting");
+        Require(w.Ammo == 6 && w.Reserve == 7 && RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "mounted reload completes with native ammo accounting");
     }
     static void BipodCeScope()
     {
         using var w = Loaded(); var comp = AttachBipod(w);
         CombatExtended.Controller.settings.Enabled = false;
-        w.Frame(bipod: true); w.Tick();
-        Require(comp.DeployCalls == 0 && !RimFront.NativeBipods.IsMounted(w.Pawn), "disabled CE mechanics respected");
+        w.Frame(brace: true); w.Tick();
+        Require(comp.DeployCalls == 0 && !RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "disabled CE mechanics respected");
         CombatExtended.Controller.settings.Enabled = true;
-        w.Frame(bipod: true); w.Tick(); w.Frame(bipod: true); w.Tick();
+        w.Frame(brace: true); w.Tick(); w.Frame(brace: true); w.Tick();
         Require(comp.DeployCalls == 1 && comp.CloseCalls == 1, "V cancels setup before completion");
-        var hook = typeof(RimFront.NativeBipods).GetMethod("ShouldSetUp", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var hook = typeof(RimFront.NativeWeaponBrace).GetMethod("ShouldSetUp", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         object[] own = { comp, true };
         Require(!(bool)hook.Invoke(null, own) && !(bool)own[1], "explicit fold suppresses CE auto setup for owned component");
         object[] foreign = { new CombatExtended.BipodComp(), true };
@@ -107,20 +107,20 @@ internal static class Program
     static void BipodQueuedPause()
     {
         using var w = Loaded();
-        w.Frame(bipod: true); w.Frame(paused: true); w.Frame(); w.Tick();
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn), "V queued before pause cannot deploy after unpause");
+        w.Frame(brace: true); w.Frame(paused: true); w.Frame(); w.Tick();
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "V queued before pause cannot deploy after unpause");
     }
     static void BraceMovement()
     {
         using var w = Loaded();
-        w.Frame(bipod: true); w.Tick();
-        Require(RimFront.NativeBipods.IsMounted(w.Pawn), "V mounts a non-CE ranged weapon");
+        w.Frame(brace: true); w.Tick();
+        Require(RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "V mounts a non-CE ranged weapon");
         Require(w.Mode == "Auto", "V does not change fire mode");
-        w.Frame(bipod: true); w.Tick();
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn), "V folds the brace");
-        w.Frame(bipod: true); w.Tick();
+        w.Frame(brace: true); w.Tick();
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "V folds the brace");
+        w.Frame(brace: true); w.Tick();
         w.Frame(forward: 1); w.Tick();
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn) && RimFront.AnalogMovement.IsMoving, "movement folds and resumes movement");
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn) && RimFront.AnalogMovement.IsMoving, "movement folds and resumes movement");
     }
     static CombatExtended.BipodComp AttachBipod(FiringWorld w)
     {
@@ -129,41 +129,41 @@ internal static class Program
     static void CeBipodToggle()
     {
         using var w = Loaded(); var comp = AttachBipod(w);
-        w.Frame(bipod: true); w.Tick();
+        w.Frame(brace: true); w.Tick();
         Require(comp.DeployCalls == 1 && !comp.IsSetUpRn, "V invokes native deployment without completing setup");
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn), "setup is not a completed mount");
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "setup is not a completed mount");
         w.Frame(); w.Tick(6);
-        Require(RimFront.NativeBipods.IsMounted(w.Pawn), "native timed setup completes");
-        w.Frame(bipod: true); w.Tick();
+        Require(RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "native timed setup completes");
+        w.Frame(brace: true); w.Tick();
         Require(comp.CloseCalls == 1 && !comp.IsSetUpRn, "V calls native fold");
-        w.Frame(bipod: true); w.Tick();
+        w.Frame(brace: true); w.Tick();
         w.Frame(forward: 1); w.Tick();
         Require(w.Pawn.CurJob?.def.defName != "JobDef_SetUpBipod" && !comp.IsSetUpRn, "movement cancels pending native setup");
         w.Frame(); w.Tick(8);
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn), "cancelled setup cannot mount later");
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "cancelled setup cannot mount later");
     }
     static void BipodSafety()
     {
         using var w = Loaded();
-        w.Frame(paused: true, bipod: true); w.Frame(); w.Tick();
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn), "paused V is discarded");
-        w.Frame(bipod: true); w.Tick(); w.ExpireInput(); w.Tick();
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn), "stale input releases mount");
-        w.Frame(bipod: true); w.Tick(); w.Game.Release("exit test");
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn), "exit clears brace");
+        w.Frame(paused: true, brace: true); w.Frame(); w.Tick();
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "paused V is discarded");
+        w.Frame(brace: true); w.Tick(); w.ExpireInput(); w.Tick();
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "stale input releases mount");
+        w.Frame(brace: true); w.Tick(); w.Game.Release("exit test");
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn), "exit clears brace");
     }
     static void BipodSwap()
     {
         using var w = Loaded(); var comp = AttachBipod(w);
-        w.Frame(bipod: true); w.Tick();
+        w.Frame(brace: true); w.Tick();
         w.Pawn.equipment.Primary = new Verse.ThingWithComps(); w.Frame(); w.Tick();
-        Require(!RimFront.NativeBipods.IsMounted(w.Pawn) && comp.CloseCalls == 1, "weapon swap cancels exact old component");
+        Require(!RimFront.NativeWeaponBrace.IsMounted(w.Pawn) && comp.CloseCalls == 1, "weapon swap cancels exact old component");
         Require(w.Pawn.CurJob?.def.defName != "JobDef_SetUpBipod", "old setup job ends on weapon swap");
     }
     static void BipodFireGate()
     {
         using var w = Loaded();
-        w.Frame(held: true, bipod: true); w.Tick(); Run(w, 20);
+        w.Frame(held: true, brace: true); w.Tick(); Run(w, 20);
         Require(w.Shots == 0, "V consumes simultaneous trigger and requires release");
         w.Frame(); w.Tick(); w.Frame(held: true); Run(w, 20);
         Require(w.Shots > 0, "fresh click fires while mounted");

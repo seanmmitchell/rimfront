@@ -6,6 +6,10 @@ Before packaging a new release, run `scripts/verify-release.ps1`. Its firing-loo
 
 For the 0.6.3 reload fix, press R during warmup, burst, cooldown, and idle with a partly loaded magazine; repeat with no reserve ammunition and while holding/releasing fire. Include M60/bipod and a non-bipod gun. Verify the reload finishes in first-person view and Auto resumes only while held. Any unexpected job exit now writes one `[RimFront:Fire] event=unexpected-job` report with the recent 12 job starts even when optional tracing is off; retain that report with the log.
 
+## Optional 2D characters
+
+Enable **Use viewpoint-based 2D characters** in RimFront mod settings during possession, then disable it and reenter. Verify the setting persists after restart, 3D remains the default for existing settings, and switching is immediate. Walk around stationary/turning pawns: front, side and back must follow the observer with upright, correctly oriented artwork and no opaque atlas background. Check hats, layered apparel, injuries, animals, mechs, sleeping pawns in every bed rotation, downed pawns and corpses. Change apparel while the option is active and confirm native invalidation refreshes it. Verify perspective scale, lighting and wall/fog occlusion. Confirm indicators, shields, first-person hands, shooting/reload and exit still work. Check atlas warmup and unavailable atlas frames fall back to 3D and repeated entry/exit does not leak materials or destroy game-owned art. Sprite poses are static/sideways cards, equipment extras are omitted, and body geometry remains an approximate combat proxy rather than pixel-accurate sprite collision. Run these checks on both game branches; automated helpers do not certify GPU/atlas behavior.
+
 ## Package, input and lifecycle
 
 | Case | Action | Expected result |
@@ -26,6 +30,8 @@ For the 0.6.3 reload fix, press R during warmup, burst, cooldown, and idle with 
 
 ## Movement and scene
 
+For the minimap, check entry, analog and native-path movement, pause, and rapid mouse sweeps at multiple resolutions/UI scales. The top-right panel must stay below the status HUD and above the weapon bar. White marks the controlled pawn with a facing arrow; north stays up. Confirm terrain, water, snow, walls and open/closed doors agree with the map and update within 200 ms. Aim near and then at the farthest selectable point in every direction: the view should retain 25-tile surroundings at refresh and add four tiles of context around the gold aim point. Hollow gold means an empty aim point; the line is a selection guide, not a promise of a successful native shot. Obstructed/fogged aim must not track a target behind the obstruction; losing aim restores the local view. At map edges, outside-map space stays dark and fog never exposes terrain or pawns. Visible pawn dots use relationship colors and disappear behind walls; test a crowded map over several refreshes. Teleport more than five tiles: the next repaint must immediately restore local coverage. Exit, transfer control, change maps and load another save repeatedly: the panel disappears and its texture/map references clear. Live rendering, texture orientation, layout and frame-time checks remain required; portable framing tests do not certify them.
+
 For vegetation, orbit trees and bushes at several heights and distances: cards remain upright, face the observer, obey depth/fog and use installed native artwork. Test growth, leafless/immature variants, missing art, dense forests, lamps/night and save changes. Plant hit volumes remain fixed while looking around; transparent leaf pixels do not provide exact collision silhouettes.
 
 | Case | Action | Expected result |
@@ -36,7 +42,10 @@ For vegetation, orbit trees and bushes at several heights and distances: cards r
 | Doors | Approach closed/open doors; stop partly through a doorway; test fence gates | Waits for fully open doors; closure waits for body clearance; moving leaves have no permanent static rails |
 | Native stagger | Apply stagger and compare travel | Native payment slowdown remains effective; no speed exploit |
 | CE coordinates | Shoot and receive fire near cell boundaries; move laterally while another pawn aims | Origins, visible body, collision queries and lead agree with continuous position |
-| Static geometry | Build/destroy walls, grow/harvest plants and change resource stacks across 25/50/75 | Geometry/signatures update within bounded refresh; aim and visible growth steps agree |
+| Static geometry | Build/destroy walls, grow/harvest plants and change resource stacks across 5/6, 25/26, 50/51 and 75/76; split and haul them | Geometry/signatures update within bounded refresh; aim and visible growth steps agree |
+| Cover models | Inspect wood/steel/stone barricades and CE embrasures, singly and in runs along both axes; repaint and rebuild them | Braced barricades stay waist-high; material tint is retained; embrasure ports remain open on all four sides; no full-wall fallback fills the ports |
+| Resource models | Compare wood, steel and each stone block at 1/25/50/75 units; inspect rough chunks separately | Logs show bark/cut ends, ingots show beveled shoulders, blocks form alternating courses; piles grow within one tile, up to 18 visible pieces; chunks stay distinct from manufactured blocks |
+| Embrasure targeting | Aim and fire a supported straight vanilla/CE ballistic shot through a port at standing height, then at the base, corner pier and lintel | Port selects geometry beyond it; solid frame remains targetable; record native accuracy/cover outcomes separately from the rendered opening |
 | Depth/fog/cache | Look vertically, approach walls, cross chunk borders and face fog | Perspective/depth are correct; no flat-map duplicates, missing near scenery or exposed hidden objects |
 | Render coexistence | Add other camera/visual/movement mods | Record conflicts and repeated errors; do not assume universal compatibility |
 

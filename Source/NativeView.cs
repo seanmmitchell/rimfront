@@ -94,6 +94,7 @@ namespace RimFront
 
         internal static void Stop()
         {
+            NativeMinimap.Dispose();
             if (pawn == null && camera == null) return;
             // Clear activity before restoring so Harmony immediately returns camera/UI ownership.
             pawn = null;
@@ -169,7 +170,7 @@ namespace RimFront
                 fire = !paused && !waitForInitialMouseUp && Input.GetMouseButton(0),
                 reload = !paused && Input.GetKeyDown(KeyCode.R),
                 cycleFireMode = !paused && Input.GetKeyDown(KeyCode.F),
-                toggleBipod = !paused && Input.GetKeyDown(KeyCode.V)
+                toggleBrace = !paused && Input.GetKeyDown(KeyCode.V)
             };
         }
 
@@ -224,11 +225,12 @@ namespace RimFront
             if (current.type == EventType.KeyDown && current.keyCode == KeyCode.Escape) requestRelease = true;
             if (current.type != EventType.Repaint) return;
             NativeTargetIndicators.OnGUI(pawn);
+            NativeMinimap.OnGUI(pawn);
             if (Time.realtimeSinceStartup >= nextHudRefresh)
             {
                 nextHudRefresh = Time.realtimeSinceStartup + 0.1f;
                 weapon = CombatAdapter.Describe(pawn);
-                string mounting = NativeBipods.Status(pawn);
+                string mounting = NativeWeaponBrace.Status(pawn);
                 if (mounting != "") weapon.status += " / " + mounting;
                 nameText = pawn.LabelShortCap.ToString();
                 healthText = Mathf.RoundToInt(pawn.health.summaryHealth.SummaryHealthPercent * 100f) + "%";

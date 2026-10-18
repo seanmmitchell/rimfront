@@ -14,7 +14,7 @@ namespace RimFront
         Job ownedJob;
         bool oldFireAtWill;
         InputCommand input;
-        bool pendingReload, pendingFire, pendingBipod;
+        bool pendingReload, pendingFire, pendingBrace;
         bool pendingFireMode, requireFireRelease, attackRequiresTriggerPress;
         bool suppressNextFireEdge, reportedStaleFire;
         readonly NativeFiringTrace firingTrace = new NativeFiringTrace();
@@ -51,7 +51,7 @@ namespace RimFront
             controlledMap = candidate.Map;
             oldFireAtWill = candidate.drafter.FireAtWill;
             input = null;
-            pendingBipod = pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
+            pendingBrace = pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
             suppressNextFireEdge = reportedStaleFire = false;
             firingTrace.Reset();
             Active = this;
@@ -85,7 +85,7 @@ namespace RimFront
             {
                 if (pawn != null)
                 {
-                    try { NativeBipods.Clear(); StopOwnedJob("control release"); }
+                    try { NativeWeaponBrace.Clear(); StopOwnedJob("control release"); }
                     catch (Exception e) { Log.Warning("[RimFront] Native job cleanup: " + e.Message); }
                     if (pawn.drafter != null) pawn.drafter.FireAtWill = oldFireAtWill;
                 }
@@ -96,7 +96,7 @@ namespace RimFront
                 controlledMap = null;
                 ownedJob = null;
                 input = null;
-                pendingBipod = pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
+                pendingBrace = pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
                 suppressNextFireEdge = reportedStaleFire = false;
                 firingTrace.Reset();
                 message = reason;
@@ -179,7 +179,7 @@ namespace RimFront
             // be a foreign attack with stale geometry. Let the reload run unchanged;
             // subsequent fire uses the normal trigger policy and a fresh crosshair ray.
             resumeCurrent = false;
-            bool freshInput = input != null && !requireFireRelease && !pendingReload && !pendingFireMode && !pendingBipod
+            bool freshInput = input != null && !requireFireRelease && !pendingReload && !pendingFireMode && !pendingBrace
                 && !Find.TickManager.Paused && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds)
                 && Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f;
             pendingFire |= NativeAttackLifecycle.RetryAfterReload(freshInput, attackHasFired,
@@ -221,16 +221,16 @@ namespace RimFront
                 // Paused clicks must not become surprise actions after unpausing.
                 if (Find.TickManager.Paused)
                 {
-                    command.fire = command.reload = command.cycleFireMode = command.toggleBipod = false;
+                    command.fire = command.reload = command.cycleFireMode = command.toggleBrace = false;
                     command.forward = command.strafe = 0;
-                    pendingBipod = pendingFire = pendingReload = pendingFireMode = false;
+                    pendingBrace = pendingFire = pendingReload = pendingFireMode = false;
                     AnalogMovement.Halt();
                 }
                 else
                 {
                     pendingReload |= command.reload;
                     pendingFireMode |= command.cycleFireMode;
-                    pendingBipod |= command.toggleBipod;
+                    pendingBrace |= command.toggleBrace;
                     pendingFire |= firePressed;
                 }
                 firingTrace.Input(pawn, physicalFire, rawFire, command.fire, pendingFire, requireFireRelease,
@@ -274,10 +274,10 @@ namespace RimFront
                     if (NativeFiringTrace.Enabled)
                         firingTrace.Event(pawn, "stale-input", "ageMs=" + inputAge.ToString("0") + " held=" + input.fire);
                     AnalogMovement.Halt();
-                    NativeBipods.Clear();
+                    NativeWeaponBrace.Clear();
                     if (ownedJob?.def == JobDefOf.Goto || ownedJob?.def == JobDefOf.AttackStatic) StopOwnedJob("stale input");
                     input = null;
-                    pendingBipod = pendingReload = pendingFire = pendingFireMode = false;
+                    pendingBrace = pendingReload = pendingFire = pendingFireMode = false;
                     // Clear stale actions, but do not latch off an automatic trigger.
                     // The first new sample restores held state without inventing a click.
                     suppressNextFireEdge = true;
@@ -290,16 +290,16 @@ namespace RimFront
                     return;
                 }
                 bool movingBipod = Math.Abs(input.forward) + Math.Abs(input.strafe) >= .1f;
-                NativeBipods.Update(pawn, movingBipod);
-                if (pendingBipod)
+                NativeWeaponBrace.Update(pawn, movingBipod);
+                if (pendingBrace)
                 {
-                    pendingBipod = false;
+                    pendingBrace = false;
                     if (movingBipod) { pendingFire = false; message = "Stop moving before mounting."; return; }
                     StopOwnedJob("bipod toggle", startNewJob: false);
                     requireFireRelease |= input.fire;
                     input.fire = pendingFire = false;
                     AnalogMovement.Halt();
-                    NativeBipods.Toggle(pawn, out message);
+                    NativeWeaponBrace.Toggle(pawn, out message);
                     return;
                 }
                 if (CombatAdapter.IsSettingUpBipod(pawn))
@@ -395,7 +395,7 @@ namespace RimFront
                 if (AnalogMovement.Active)
                 {
                     AnalogMovement.Tick(input.yaw, forward, strafe);
-                    message = AnalogMovement.IsMoving ? "Analog movement." : NativeBipods.Status(pawn) != "" ? NativeBipods.Status(pawn) : "Analog - ready.";
+                    message = AnalogMovement.IsMoving ? "Analog movement." : NativeWeaponBrace.Status(pawn) != "" ? NativeWeaponBrace.Status(pawn) : "Analog - ready.";
                     return;
                 }
                 if (Math.Abs(forward) + Math.Abs(strafe) < 0.1)
@@ -475,7 +475,7 @@ namespace RimFront
                 {
                     ownedJob = started ? job : null;
                     if (deferred && requestedAttack && input != null && !requireFireRelease
-                        && !pendingReload && !pendingFireMode && !pendingBipod && !Find.TickManager.Paused
+                        && !pendingReload && !pendingFireMode && !pendingBrace && !Find.TickManager.Paused
                         && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds)
                         && Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f
                         && (requestedVerb?.LastShotTick ?? initialShot) <= initialShot)

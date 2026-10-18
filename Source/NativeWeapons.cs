@@ -381,12 +381,12 @@ namespace RimFront
 
         static void FirstPersonPose(Pawn pawn, WeaponKind kind, out Vector3 position, out Quaternion rotation, out float scale)
         {
-            float recoil = Recoil(pawn) * (NativeBipods.IsMounted(pawn) ? .35f : 1f);
+            float recoil = Recoil(pawn) * (NativeWeaponBrace.IsMounted(pawn) ? .35f : 1f);
             Quaternion camera = Quaternion.Euler(NativeView.PitchDegrees, NativeView.Yaw * Mathf.Rad2Deg, 0);
             // Use the actual eye transform, including camera interpolation.
             position = NativeView.RenderPosition;
             // Kept in world depth: walls can occlude the viewmodel instead of drawing through them.
-            position += camera * (NativeBipods.IsMounted(pawn) ? new Vector3(0, -.22f, .52f - recoil * .035f)
+            position += camera * (NativeWeaponBrace.IsMounted(pawn) ? new Vector3(0, -.22f, .52f - recoil * .035f)
                 : FirstPersonOffset(WeaponHand(NativePawns.Appearance(pawn)), recoil));
             rotation = camera * Quaternion.Euler(-recoil * (Compact(kind) ? 8f : 4.5f), -3f, recoil * 1.5f);
             scale = .58f;
@@ -426,8 +426,8 @@ namespace RimFront
 
         static void DrawBipod(Pawn pawn, Matrix4x4 transform)
         {
-            if (!NativeBipods.HasBipod(pawn)) return;
-            bool deployed = NativeBipods.VisualDeployed(pawn);
+            if (!NativeWeaponBrace.HasBipod(pawn)) return;
+            bool deployed = NativeWeaponBrace.VisualDeployed(pawn);
             int key = deployed ? 1 : 0;
             if (bipods[key] == null)
             {

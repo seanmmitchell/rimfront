@@ -8,7 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="EngineFixture.cs" />
-    <Compile Include="../../Source/NativeBipods.cs" Link="Production/NativeBipods.cs" />
+    <Compile Include="../../Source/NativeWeaponBrace.cs" Link="Production/NativeWeaponBrace.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="$(GameplaySource)" Link="Production/Gameplay.cs" />
     <Compile Include="../../Source/NativeInput.cs" Link="Production/NativeInput.cs" />

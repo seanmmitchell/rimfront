@@ -9,7 +9,7 @@ internal static partial class Program
     {
         Type guns = assembly.GetType("RimFront.NativeMachineGuns", true), profiles = guns.GetNestedType("Profile", Flags),
             weapons = assembly.GetType("RimFront.NativeWeapons", true), parts = weapons.GetNestedType("WeaponPart", Flags),
-            bipods = assembly.GetType("RimFront.NativeBipods", true);
+            bipods = assembly.GetType("RimFront.NativeWeaponBrace", true);
         MethodInfo build = guns.GetMethod("BuildGeometry", Flags), classify = guns.GetMethod("Classify", Flags),
             supports = bipods.GetMethod("CanBrace", Flags), supportMesh = guns.GetMethod("BuildBipod", Flags);
         var shapes = new HashSet<string>();

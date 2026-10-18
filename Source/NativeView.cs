@@ -22,6 +22,8 @@ namespace RimFront
         static CursorLockMode oldCursorLock;
         static readonly List<Camera> disabledSubcameras = new List<Camera>();
         static float yaw, pitch;
+        internal static bool Crouching { get; private set; }
+        internal static bool IsCrouching(Pawn candidate) => Active && candidate == pawn && Crouching;
         static int consumeEscapeThroughFrame = -1;
         static bool requestRelease, waitForInitialMouseUp;
         static float nextHudRefresh;
@@ -54,6 +56,7 @@ namespace RimFront
             oldCursorVisible = Cursor.visible;
             oldRunInBackground = Application.runInBackground;
             pawn = controlled;
+            Crouching = false;
             NativeShieldEffects.BeginViewSession();
             yaw = controlled.Rotation.AsAngle;
             pitch = 0f;
@@ -98,6 +101,7 @@ namespace RimFront
             if (pawn == null && camera == null) return;
             // Clear activity before restoring so Harmony immediately returns camera/UI ownership.
             pawn = null;
+            Crouching = false;
             Camera saved = camera;
             camera = null;
             try
@@ -159,12 +163,13 @@ namespace RimFront
             pitch = Mathf.Clamp(pitch - Input.GetAxisRaw("Mouse Y") * sensitivity, -65f, 70f);
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
+            if (!Find.TickManager.Paused) Crouching = Input.GetKey(KeyCode.LeftControl);
             ApplyPose();
             if (!Input.GetMouseButton(0)) waitForInitialMouseUp = false;
             bool paused = Find.TickManager.Paused;
             return new InputCommand
             {
-                action = "input", yaw = Yaw, pitch = pitch * Mathf.Deg2Rad,
+                action = "input", yaw = Yaw, pitch = pitch * Mathf.Deg2Rad, crouch = Crouching,
                 forward = paused ? 0 : (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f),
                 strafe = paused ? 0 : (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f),
                 fire = !paused && !waitForInitialMouseUp && Input.GetMouseButton(0),
@@ -190,7 +195,7 @@ namespace RimFront
                     : pawn.Position.ToVector3Shifted();
             }
             camera.farClipPlane = NativeScene.ViewDistance;
-            position.y = EyeHeight;
+            position.y = Crouching ? NativeStance.CrouchEyeHeight : EyeHeight;
             camera.transform.position = position;
             camera.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
         }
@@ -249,14 +254,14 @@ namespace RimFront
                 GUI.color = new Color(0.85f, 0.91f, 0.79f);
                 Widgets.Label(new Rect(28, 19, 510, 24), "RIMFRONT  /  " + nameText + "  /  " + healthText + "  /  " + Mathf.RoundToInt(1f / Math.Max(0.001f, frameSeconds)) + " FPS");
                 GUI.color = Color.white;
-                Widgets.Label(new Rect(28, 42, 690, 24), "WASD · Mouse aim · LMB fire · R reload · F mode · V brace · G auto · Space pause · Esc exit");
+                Widgets.Label(new Rect(28, 42, 690, 24), "WASD · Ctrl crouch · LMB fire · R reload · F mode · V brace · G auto · Space pause · Esc exit");
                 Widgets.DrawBoxSolid(new Rect(width - 340, 16, 324, 31), new Color(0.055f, 0.07f, 0.06f, 0.88f));
                 Widgets.Label(new Rect(width - 328, 18, 304, 26), (AnalogMovement.Active ? "Analog" : "Native path") + " / " + NativeScene.DrawCalls + " draws / " + NativeScene.CachedChunks + " chunks");
                 Widgets.DrawBoxSolid(new Rect(16, height - 114, 620, 98), new Color(0.055f, 0.07f, 0.06f, 0.88f));
                 Widgets.Label(new Rect(28, height - 110, 600, 26), NativeBipods.Describe(pawn));
                 string ammo = weapon != null && weapon.ammo >= 0 ? "  " + weapon.ammo + " / " + weapon.capacity : "";
                 Widgets.Label(new Rect(28, height - 82, 600, 26), (weapon?.label ?? "Unarmed") + ammo + "  /  " + (weapon?.fireMode ?? "Fixed") + "  —  " + (weapon?.status ?? ""));
-                Widgets.Label(new Rect(28, height - 54, 600, 26), Find.TickManager.Paused ? "PAUSED — press Space to resume" : (status ?? ""));
+                Widgets.Label(new Rect(28, height - 54, 600, 26), Find.TickManager.Paused ? "PAUSED — press Space to resume" : (Crouching ? "CROUCHED / " : "") + (status ?? ""));
                 Color crosshair = new Color(0.9f, 0.95f, 0.85f, 0.85f);
                 Widgets.DrawBoxSolid(new Rect(width / 2f - 7, height / 2f, 5, 1), crosshair);
                 Widgets.DrawBoxSolid(new Rect(width / 2f + 3, height / 2f, 5, 1), crosshair);

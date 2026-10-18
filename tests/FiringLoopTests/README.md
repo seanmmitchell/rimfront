@@ -46,3 +46,7 @@ The installed-assembly helper suite separately tests the real classifier, CE spe
 Bipod regressions cover G during setup/fire/reload, one-shot consumption, pause/stale/re-entry clearing, unsupported weapons, foreign jobs and movement cancelling a queued click. The `bipod-toggle-ignored` mutation must compile and fail `bipod-toggle-cancels-setup`. The weapon adapter remains simulated here; `WeaponControlTests` separately links the real bipod and source adapters.
 
 Four integration scenarios verify V/G mount transitions, simultaneous input, unsupported G preserving a brace, and pause clearing both pending actions.
+
+## Moving fire and crouch coverage
+
+The harness also links production `NativeStance.cs` and directly invokes its stance and movement-payment hooks. Seven added scenarios (59 total) exercise walking warmups and repeated Auto bursts, Single/Burst press semantics, native path attack ownership, immediate setting changes, pause/stale/stun/foreign-stance exclusions, combined crouch/firing speed penalties, and hook cleanup on exit. Legacy movement-cancellation scenarios explicitly disable moving fire. These managed checks do not execute Harmony binding or native path progress; `NativePawnTests` separately checks compiled crouch bounds and actual barricade/sandbag triangles for at least 90% frontal coverage.

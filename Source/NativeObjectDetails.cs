@@ -7,6 +7,7 @@ namespace RimFront
     {
         static void AddBarricade(NativeScene.Builder b, float w, float d, Color tint)
         {
+            Box(b,0,.43f,-d*.065f,w*.96f,.86f,d*.12f,tint*.78f);
             for (int side = -1; side <= 1; side += 2)
             {
                 Box(b,side*w*.36f,.43f,0,w*.13f,.86f,d*.22f,tint*.78f);

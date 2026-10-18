@@ -139,8 +139,9 @@ namespace RimFront
 
         static void BoundsPostfix(Thing __0, ref Bounds __result)
         {
-            if (!AnalogMovement.TryGetPosition(__0, out Vector3 position)) return;
-            __result.center = Recenter(__result.center, position);
+            if (AnalogMovement.TryGetPosition(__0, out Vector3 position))
+                __result.center = Recenter(__result.center, position);
+            if (__0 is Pawn controlled && NativeView.IsCrouching(controlled)) __result = NativeStance.CrouchBounds(__result);
         }
 
         static void LineOfSightPrefix(Verb __instance, ref Vector3 __0)

@@ -49,6 +49,7 @@ internal static partial class Program
             TestShieldSession(assembly);
             TestLyingAim(assembly);
             TestPawnAimGeometry(assembly);
+            TestCrouchCover(assembly);
             TestBloodEffects(assembly);
             TestImpactEffects(assembly);
             TestBloodFilth(assembly);

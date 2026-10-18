@@ -13,12 +13,13 @@ namespace RimFront
     internal static class NativeScene
     {
         internal const int ChunkSize = 12;
-        internal const int ChunkRadius = 3;
-        internal const int MaximumChunks = 49;
+        internal static int ChunkRadius => ViewRange.ChunkRadiusFor(RimFrontMod.Settings?.extraViewRange ?? 0);
+        internal const int MaximumChunks = ViewRange.MaximumChunks;
         internal static int DrawCalls { get; private set; }
         internal static void CountDraw() { DrawCalls++; }
         internal static int CachedChunks { get { return chunks.Count; } }
-        const float DynamicRadiusSquared = 30f * 30f;
+        internal static float ViewDistance => ViewRange.DistanceFor(RimFrontMod.Settings?.extraViewRange ?? 0);
+        internal static float ViewDistanceSquared => ViewDistance * ViewDistance;
         static readonly Dictionary<int, Chunk> chunks = new Dictionary<int, Chunk>();
         static readonly List<int> expired = new List<int>();
         static readonly HashSet<int> drawn = new HashSet<int>();
@@ -74,6 +75,8 @@ namespace RimFront
                 bloodTrailsVisible = showBlood;
                 foreach (Chunk chunk in chunks.Values) chunk.Dirty = true;
             }
+            if (NativeMountains.Update(map))
+                foreach (Chunk chunk in chunks.Values) chunk.Dirty = true;
             NativeLighting.Begin(map);
             NativePawns.BeginFrame(controlled);
             NativeVegetation.Begin(NativeView.RenderPosition, yaw);
@@ -141,7 +144,7 @@ namespace RimFront
                         if (!thing.Position.Fogged(map)) NativeVegetation.Queue(plant, dx * dx + dz * dz);
                         continue;
                     }
-                    if (dx * dx + dz * dz > DynamicRadiusSquared || thing.Position.Fogged(map)) continue;
+                    if (dx * dx + dz * dz > ViewDistanceSquared || thing.Position.Fogged(map)) continue;
                     Building_Door door = thing as Building_Door;
                     if (door != null) { DrawDoor(door, pos); continue; }
                     if (thing is Corpse corpse && corpse.InnerPawn != null)
@@ -155,7 +158,7 @@ namespace RimFront
                 if (pawn == controlled || pawn.Dead || !pawn.Spawned || pawn.Position.Fogged(map)) continue;
                 Vector3 pos = pawn.DrawPos;
                 float dx = pos.x - observer.x, dz = pos.z - observer.z;
-                if (dx * dx + dz * dz > DynamicRadiusSquared) continue;
+                if (dx * dx + dz * dz > ViewDistanceSquared) continue;
                 NativePawns.Draw(pawn, pos, dx * dx + dz * dz);
             }
             NativeCombatEffects.Draw(map, controlled);
@@ -176,6 +179,7 @@ namespace RimFront
         internal static void Invalidate(MapDrawer drawer, IntVec3 cell)
         {
             if (currentMap == null || drawer != currentMap.mapDrawer) return;
+            NativeMountains.Invalidate(currentMap, cell);
             // Adjacent cells cover geometry touching a chunk boundary. The existing game
             // invalidation notification is observed only; its original behavior is unchanged.
             for (int z = cell.z - 1; z <= cell.z + 1; z++) for (int x = cell.x - 1; x <= cell.x + 1; x++)
@@ -236,6 +240,7 @@ namespace RimFront
             Destroy(doorMesh); Destroy(material);
             doorMesh = null;
             material = null; currentMap = null; nextRefresh = 0;
+            NativeMountains.Dispose();
             NativeAimTargeting.Dispose();
             NativePawns.Dispose(); NativeWeapons.Dispose(); NativeVegetation.Dispose(); NativeCombatEffects.Dispose(); NativeBloodEffects.Dispose(); NativeWeather.Dispose(); NativeLighting.Dispose();
         }
@@ -278,11 +283,12 @@ namespace RimFront
                 CheckedAt = now;
                 Dirty = false;
                 Dynamic.Clear();
-                int hash = bloodTrailsVisible ? 17 : 19;
+                int hash = (bloodTrailsVisible ? 17 : 19) ^ NativeMountains.Revision;
                 for (int z = Z * ChunkSize; z < Math.Min(map.Size.z, (Z + 1) * ChunkSize); z++)
                     for (int x = X * ChunkSize; x < Math.Min(map.Size.x, (X + 1) * ChunkSize); x++)
                     {
                         IntVec3 cell = new IntVec3(x, 0, z);
+                        NativeMountains.Invalidate(map, cell);
                         bool fog = cell.Fogged(map);
                         unchecked { hash = hash * 31 + (fog ? 1 : cell.GetTerrain(map).shortHash); }
                         if (fog) continue;
@@ -315,7 +321,13 @@ namespace RimFront
                     {
                         IntVec3 cell = new IntVec3(x, 0, z);
                         Vector3 center = new Vector3(x + .5f, 0, z + .5f);
-                        if (cell.Fogged(map)) { builder.Box(center + new Vector3(0, 2.5f, 0), new Vector3(1, 5, 1), Fog); continue; }
+                        if (cell.Fogged(map))
+                        {
+                            builder.Box(center + new Vector3(0, 2.5f, 0), new Vector3(1, 5, 1), Fog);
+                            foreach (Thing rock in map.thingGrid.ThingsListAtFast(cell))
+                                if (rock.Position == cell && NativeMountains.IsRock(rock)) NativeMountains.Add(builder, rock, true);
+                            continue;
+                        }
                         string terrain = cell.GetTerrain(map).defName.ToLowerInvariant();
                         Color ground = terrain.Contains("water") ? new Color(.24f, .39f, .42f) : terrain.Contains("sand") ? new Color(.63f, .57f, .40f) : terrain.Contains("soil") || terrain.Contains("mud") ? new Color(.36f, .38f, .24f) : terrain.Contains("ice") || terrain.Contains("snow") ? new Color(.74f, .79f, .79f) : new Color(.46f, .47f, .40f);
                         float variation = .94f + ((x * 17 + z * 31) & 3) * .025f;
@@ -357,6 +369,7 @@ namespace RimFront
         internal static void AddThing(Builder b, Thing thing)
         {
             if (thing is Plant plant) { NativeVegetation.AppendAimGeometry(b, plant); return; }
+            if (NativeMountains.IsRock(thing)) { NativeMountains.Add(b, thing); return; }
             Vector3 pos = thing.DrawPos; pos.y = .04f;
             Quaternion rotation = Quaternion.Euler(0, thing.Rotation.AsAngle, 0);
             b.Origin = pos; b.Rotation = rotation;

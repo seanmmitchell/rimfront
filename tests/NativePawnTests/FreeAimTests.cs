@@ -49,7 +49,7 @@ internal static partial class Program
             Check(Math.Abs(direction[0] * direction[0] + direction[2] * direction[2] - 1) < .00001,
                 "free aim parameter retains native horizontal range units");
             double distance = Math.Sqrt(direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2]) * limit;
-            Check(distance <= 30.0001 && limit <= range && limit > 0, "free aim endpoint bounded by view distance and weapon range");
+            Check(distance <= 60.0001 && limit <= range && limit > 0, "free aim endpoint bounded by view distance and weapon range");
             Check(Math.Sign(direction[1]) == -Math.Sign(pitch), "positive pitch points downward");
         }
         foreach (float invalid in new[] { float.NaN, float.PositiveInfinity, float.NegativeInfinity })

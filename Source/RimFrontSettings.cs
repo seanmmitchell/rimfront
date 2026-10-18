@@ -5,6 +5,7 @@ namespace RimFront
 {
     public sealed class RimFrontSettings : ModSettings
     {
+        public int extraViewRange = 0;
         public bool analogMovement = true;
         public bool animatePawns = true;
         public bool shieldHaze = true;
@@ -20,6 +21,8 @@ namespace RimFront
         float contentHeight = 600f;
         public override void ExposeData()
         {
+            Scribe_Values.Look(ref extraViewRange, "extraViewRange", 0);
+            extraViewRange = ViewRange.Step(extraViewRange);
             Scribe_Values.Look(ref analogMovement, "analogMovement", true);
             Scribe_Values.Look(ref animatePawns, "animatePawns", true);
             Scribe_Values.Look(ref shieldHaze, "shieldHaze", true);
@@ -39,6 +42,12 @@ namespace RimFront
             Widgets.BeginScrollView(rect, ref scrollPosition, content);
             Listing_Standard listing = new Listing_Standard { maxOneColumn = true };
             listing.Begin(content);
+            listing.Label("View range");
+            extraViewRange = ViewRange.Step(extraViewRange);
+            listing.Label("Additional view range: " + (extraViewRange * 50) + "% (" + ViewRange.DistanceFor(extraViewRange) + " tiles)");
+            extraViewRange = Mathf.RoundToInt(listing.Slider(extraViewRange, 0f, 2f));
+            listing.Label("0% = 60 tiles (twice the original range); 50% = 90; 100% = 120. Applies immediately. Longer ranges increase rendering work and cache warmup.");
+            listing.Gap();
             listing.Label("Movement mode");
             listing.CheckboxLabeled("True analog movement (default)", ref analogMovement,
                 "Continuous movement with swept collisions and CE position integration. Disable to use native path movement.");

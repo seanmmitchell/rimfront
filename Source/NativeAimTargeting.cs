@@ -11,7 +11,7 @@ namespace RimFront
     // accuracy, interception, damage, ammo and warmup. No faction or hostility filter.
     internal static class NativeAimTargeting
     {
-        internal const int MaximumCells = 1024, MaximumThings = 768, MaximumCached = MaximumThings, MaximumTriangles = 65536;
+        internal const int MaximumCells = 4096, MaximumThings = 3072, MaximumCached = MaximumThings, MaximumTriangles = 65536;
         internal struct TargetInfo
         {
             internal LocalTargetInfo Target;
@@ -46,8 +46,8 @@ namespace RimFront
             direction = Vector3.zero; limit = 0;
             if (!Finite(yaw) || !Finite(pitch) || !Finite(range) || range <= 0 || Math.Abs(pitch) >= Math.PI / 2 - .001) return false;
             direction = new Vector3(Mathf.Sin(yaw), -(float)Math.Tan(pitch), Mathf.Cos(yaw));
-            // The camera's far plane and scenery are bounded to thirty tiles.
-            limit = Math.Min(range, 30f * Mathf.Cos(pitch));
+            // Selection follows the camera range while retaining the native weapon limit.
+            limit = Math.Min(range, NativeScene.ViewDistance * Mathf.Cos(pitch));
             return Finite(direction) && limit > .001f;
         }
         internal static bool RayTriangle(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, Vector3 c, out float distance)
@@ -84,6 +84,7 @@ namespace RimFront
             unchecked
             {
                 int hash = thing.stackCount * 397 ^ thing.def.GetHashCode();
+                if (NativeMountains.IsRock(thing)) hash = hash * 31 + NativeMountains.Revision;
                 if (thing is Plant plant) hash = hash * 31 + NativeScene.PlantGrowth(plant.Growth).GetHashCode();
                 // Stable open/closed leaves retain their geometry across render frames.
                 if (thing is Building_Door door) hash = hash * 31 + DoorSignature(DoorOpenPct == null ? (door.Open ? 1f : 0f) : (float)DoorOpenPct.GetValue(door, null));
@@ -109,10 +110,21 @@ namespace RimFront
             float bottom = category == 0 ? -.5f - Math.Min(20f, Math.Max(width, depth)) * .12f : -.5f;
             return new Bounds(new Vector3(position.x, (top + bottom) * .5f, position.z), new Vector3(halfX * 2, top - bottom, halfZ * 2));
         }
-        static bool CoarseHit(Thing thing, Vector3 eye, Vector3 direction, float nearest)
+        internal static Bounds CoarseThingBounds(Thing thing)
         {
             Bounds bounds = CoarseBounds(thing.DrawPos, thing.def.size.x, thing.def.size.z, thing.Rotation.AsAngle,
                 thing is Building ? 0 : thing is Plant ? 1 : 2);
+            if (NativeMountains.IsRock(thing))
+            {
+                Vector3 min = bounds.min, max = bounds.max;
+                max.y = MountainProfile.MaximumHeight;
+                bounds = new Bounds((min + max) * .5f, max - min);
+            }
+            return bounds;
+        }
+        static bool CoarseHit(Thing thing, Vector3 eye, Vector3 direction, float nearest)
+        {
+            Bounds bounds = CoarseThingBounds(thing);
             return RayBox(eye, direction, bounds.min, bounds.max, out float entry) && entry < nearest;
         }
         static Geometry GetGeometry(Thing thing)
@@ -157,7 +169,7 @@ namespace RimFront
         internal static bool TryHitThing(Thing thing, Vector3 eye, float yaw, float pitch, out double ahead)
         {
             ahead = 0;
-            if (thing == null || !thing.Spawned || !Finite(eye) || !Ray(yaw, pitch, 30f, out Vector3 direction, out float unused)) return false;
+            if (thing == null || !thing.Spawned || !Finite(eye) || !Ray(yaw, pitch, NativeScene.ViewDistance, out Vector3 direction, out float unused)) return false;
             if (!ReferenceEquals(cachedMap, thing.Map)) { Dispose(); cachedMap = thing.Map; }
             if (thing is Pawn pawn) return NativePawns.TryAimPawn(pawn, thing.DrawPos, false, eye, yaw, pitch, out ahead);
             if (thing is Corpse corpse && corpse.InnerPawn != null) return NativePawns.TryAimPawn(corpse.InnerPawn, thing.DrawPos, true, eye, yaw, pitch, out ahead);
@@ -198,7 +210,7 @@ namespace RimFront
                 float nextX = float.IsInfinity(deltaX) ? deltaX : ((stepX > 0 ? x + 1 : x) - eye.x) / direction.x;
                 float nextZ = float.IsInfinity(deltaZ) ? deltaZ : ((stepZ > 0 ? z + 1 : z) - eye.z) / direction.z;
                 float entry = 0;
-                for (int segment = 0; segment < 64 && entry <= limit && entry <= nearest; segment++)
+                for (int segment = 0; segment < 256 && entry <= limit && entry <= nearest; segment++)
                 {
                     IntVec3 cell = new IntVec3(x, 0, z);
                     if (!cell.InBounds(map) || cell.Fogged(map)) { boundary = Math.Max(0, entry - .002f); break; }
@@ -234,7 +246,7 @@ namespace RimFront
                                 // scenery is chunked: a large building's visible near face
                                 // may be within range even when its centre is farther away.
                                 Vector3 radial = thing.DrawPos - shooter.DrawPos; radial.y = 0;
-                                if (radial.sqrMagnitude > 900f) continue;
+                                if (radial.sqrMagnitude > NativeScene.ViewDistanceSquared) continue;
                                 Pawn body = pawn ?? corpse.InnerPawn;
                                 if (!NativePawns.TryAimPawn(body, thing.DrawPos, corpse != null, eye, yaw, pitch, out double pawnHit)) continue;
                                 hit = Math.Max(.001f, (float)pawnHit);

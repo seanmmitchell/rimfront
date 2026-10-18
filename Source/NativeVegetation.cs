@@ -11,7 +11,8 @@ namespace RimFront
     internal static class NativeVegetation
     {
         internal const int MaximumCards = 4096, MaximumCandidates = 8192, MaximumBatches = 128;
-        internal const float MaximumWidth = 3f, MaximumHeight = 4.1f, RenderRadius = 32f;
+        internal const float MaximumWidth = 3f, MaximumHeight = 4.1f;
+        internal static float RenderRadius => NativeScene.ViewDistance + 2f;
         static readonly List<Candidate> candidates = new List<Candidate>();
         static readonly Dictionary<Texture, Batch> batches = new Dictionary<Texture, Batch>();
         static readonly Vector2[] fallbackShape = { new Vector2(-.5f, .25f), new Vector2(-.32f, .75f), new Vector2(0, 1),

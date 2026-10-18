@@ -99,3 +99,12 @@ For vegetation, orbit trees and bushes at several heights and distances: cards r
 | Performance | Follow [performance.md](performance.md) in crowded combat and cold/warm scenes | Record live frame times, simulation speed and input delay; offline tests/catalogs do not establish FPS |
 
 Retain failed cases as reproducible issues. Passing startup or a small subset does not mark the whole matrix compatible.
+
+## Mountains and view range
+
+- Enter near a small outcrop and a broad natural-rock/ore formation. Confirm the larger dense mass is taller, rock colors remain recognizable, constructed walls stay flat, and no cracks appear across 12-cell chunk borders.
+- Mine a visible edge and an interior tunnel; reveal fogged rock. Allow the bounded chunk rebuilds to settle. Confirm the silhouette updates, removed rock opens the passage, fog still hides underground cells and ore types beneath a uniform mountain exterior, and neighboring chunks join.
+- Aim at upper slopes and fire supported vanilla/CE ballistic weapons. Crosshair and contact geometry should follow the visible mountain; native weapon limits, roofs and movement remain authoritative.
+- Test View range at 0%, 50%, 100% (60, 90, 120 tiles), including changes during possession. Check terrain, doors, distant pawns, vegetation, labels and effects; verify targets beyond 30 tiles can be selected within native weapon range and fog still blocks selection.
+- Face diagonally and walk across chunk boundaries at every slider stop. Check distant geometry after the cache warms. Shrink the slider and verify excess chunks leave the cache. Save/restart to verify the slider persists, and exit possession to verify the original camera clip plane is restored.
+- Measure cold/warm frame times and memory at each range on both 1.6 and 1.7. The default cache can take 121 frames to fill; the largest can take 441. This PR has no live GPU or gameplay certification.

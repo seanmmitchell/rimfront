@@ -1,6 +1,6 @@
 # RimFront 0.6.3 test build
 
-The current source includes a manual-reload fix for deferred native attack orders, 35 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
+The current source includes a manual-reload fix for deferred native attack orders, 43 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 
@@ -19,10 +19,21 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 | Left mouse | Attack at the crosshair |
 | R | Request a supported native CE reload |
 | F | Cycle the equipped CE weapon's supported fire modes |
+| V | Deploy/fold the carried weapon bipod or brace |
 | Space | Pause/resume |
 | Escape | Return to colony view |
 
 The entry click does not fire. The HUD shows health, weapon, ammunition, fire mode, movement mode, FPS estimate and rendering counters. Focus loss, a blocking dialog, loss of pawn eligibility, a map change or an incompatible external job releases control. Exit restores camera, cursor, subcamera, background-execution and fire-at-will settings. Possession is not saved. A Windows safeguard preserves existing game-window icons around transitions; its live behavior still needs verification.
+
+## Carried weapon bipods
+
+Press **V** while stationary to deploy or fold the carried weapon; **F** still changes fire mode. On weapons with a CE bipod, V uses CE's timed setup job and native deployment/folding methods, respecting the CE bipod-mechanics setting. V cancels setup; movement folds it. An explicit fold suppresses CE auto-setup for that equipped weapon until possession ends. Other pawns retain native auto-setup.
+
+Other ranged long guns can use a stationary braced presentation with a centered viewmodel, reduced visual kick and deployed support legs. This fallback does not add accuracy, range or recoil-stat bonuses. CE remains responsible for its own gameplay modifiers. Pistols, thrown grenades, bows and melee weapons cannot brace. Paused V presses are discarded; stale input, weapon replacement and exit clear the brace. Toggling consumes queued fire and requires a held trigger to be released before firing again.
+
+The carried M60, M249/Minimi, PKM/PKP, MG42/MG34/MG3, RPK, DP28/DP27, Lewis, M240/FN MAG and M1919 families now have distinct original meshes, split reload parts, and folded/deployed bipod geometry. Models are shared across first-person, held and dropped rendering. Actual CE aliases such as `CE_Gun_MSixty` and `CE_Gun_MTwoFourNine` are recognized. Unknown definitions retain the generic weapon model.
+
+[Weapon model preview](docs/weapon-catalog.png) shows the compiled CPU geometry, not in-game screenshots. Regenerate it with `scripts/model-catalog.ps1` and local 1.7/Harmony references.
 
 ## Combat and fire modes
 

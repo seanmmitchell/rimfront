@@ -38,7 +38,9 @@ Owned CE ballistic queries use floating-point cell traversal and rendered contac
 
 `NativePawnModels` captures value-only appearance data; `NativePawns` caches at most 64 appearances plus nine shared family fallbacks. It refreshes at most two appearances and builds one articulated rig per frame. At most 16 pawns within 14 cells receive articulated drawing; others use assembled models. Shared family fallbacks are created lazily outside that refresh budget. `NativePawnAnimation` reads real jobs, motion and observed events; simulation ticks drive phase. Lying transforms share bed-slot position/orientation with aim geometry.
 
-`NativeWeapons` caches twelve weapon families and split reload parts. Hand sockets and equipment allocation are shared across articulated/static rendering and missing-arm cases. `NativeReloadAnimation` observes native CE reload jobs/toils without completing them or changing ammo. `NativePawnEquipment` distinguishes owned physical shields from energy belts.
+`NativeBipods` owns session-local deployment requests and only its exact native CE setup job. A scoped optional CE getter hook prevents automatic redeployment after V folds the equipped bipod; release restores normal CE policy. CE owns setup completion and stat changes. Other long guns use presentation-only bracing.
+
+`NativeWeapons` caches twelve generic weapon families and split reload parts; `NativeMachineGuns` adds nine named machine-gun profiles (36 assembled/part meshes total) and two shared bipod meshes. Hand sockets and equipment allocation are shared across articulated/static rendering and missing-arm cases. `NativeReloadAnimation` observes native CE reload jobs/toils without completing them or changing ammo. `NativePawnEquipment` distinguishes owned physical shields from energy belts.
 
 `NativeCombatEffects` observes actual launches, beam segments, impacts and shield outcomes. `NativeBloodEffects` observes real injuries and bleeding; existing blood filth supplies persistent stains. Bounded pools limit cosmetic work. `NativeShieldEffects` has a separate lifecycle for optional colony-view echoes and clears on map/game changes.
 

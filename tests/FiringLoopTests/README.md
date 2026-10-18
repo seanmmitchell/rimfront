@@ -37,3 +37,9 @@ The 0.6.3 investigation corrected two fixture assumptions: ordered jobs can be a
 This is controller integration coverage with a simulated engine boundary. It does **not** execute Combat Extended's real reload driver, Harmony patch binding, Unity/Waylith input, projectile collision, or rendering. Changes in those dependencies can still escape the harness. Existing native metadata/helper checks complement it; live smoke tests with the installed CE build remain necessary, especially M60/bipod and last-round reloads.
 
 `scripts/test.ps1` runs the scenarios and mutation gate before the other suites. Use `scripts/verify-release.ps1` with the game/Harmony paths to build both targets, run all gates, then package only on success. `package.ps1` is a low-level archive tool, not a verification command. Report named behavior results and live-test status rather than combining scenario counts with geometry assertions.
+
+## V bipod controller coverage
+
+The harness also links production `NativeBipods.cs`. Eight additional scenarios cover non-CE brace/fold/movement, native CE timed completion and cancellation, queued/paused V, stale input/exit, exact-weapon replacement, held-trigger release gating, disabled CE bipod mechanics, preservation of native reloads, and the exact-component scope of the auto-setup hook. The total is 43 named scenarios. CE components, settings and job timing are simulated; the scope hook is invoked directly. The fixture does not execute Harmony binding or CE stat calculations.
+
+The installed-assembly helper suite separately tests the real classifier, CE spelled-out definition aliases, distinct finite machine-gun meshes, muzzle/socket agreement, nondegenerate triangles, bipod states and mesh budgets. `model-catalog.ps1` exports and renders those compiled meshes.

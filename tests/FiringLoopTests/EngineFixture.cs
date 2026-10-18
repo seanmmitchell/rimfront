@@ -38,6 +38,7 @@ public sealed class FiringWorld : IDisposable
     public FiringWorld()
     {
         RimFrontGame.Active?.Release("Fixture replaced.");
+        CombatExtended.Controller.settings.Enabled = true;
         Log.Errors.Clear(); Log.Entries.Clear();
         Find.TickManager = new TickManager(); Find.CurrentMap = new Map();
         Pawn = new Pawn(this) { Map = Find.CurrentMap };
@@ -47,12 +48,12 @@ public sealed class FiringWorld : IDisposable
     }
 
     public void Frame(bool held = false, bool reload = false, bool cycleMode = false, bool paused = false,
-        float forward = 0, float strafe = 0, bool release = false)
+        float forward = 0, float strafe = 0, bool release = false, bool bipod = false)
     {
         Paused = paused; forcedAge = null;
         NativeView.FireHeld = held;
         NativeView.Command = new InputCommand { action = release ? "release" : "input", fire = held && !paused,
-            reload = reload, cycleFireMode = cycleMode, forward = forward, strafe = strafe };
+            reload = reload, cycleFireMode = cycleMode, toggleBipod = bipod, forward = forward, strafe = strafe };
         Game.GameComponentUpdate();
         AssertNoErrors();
     }
@@ -81,8 +82,8 @@ public sealed class FiringWorld : IDisposable
 
     public void SetSetupWait(int ticks)
     {
-        SetupRemaining = ticks;
         Pawn.jobs.StartJob(new Job { def = new JobDef("JobDef_SetUpBipod") }, JobCondition.InterruptForced);
+        SetupRemaining = ticks;
     }
 
     public void SetExternalJob(string name, bool forced = true)
@@ -128,7 +129,12 @@ public sealed class FiringWorld : IDisposable
             return;
         }
         if (Pawn.CurJob?.def.defName == "JobDef_SetUpBipod")
-        { if (--SetupRemaining <= 0) Pawn.jobs.EndCurrentJob(JobCondition.Succeeded); return; }
+        { if (--SetupRemaining <= 0)
+            {
+                foreach (var comp in Pawn.equipment.Primary.AllComps)
+                    if (comp is CombatExtended.BipodComp native) native.IsSetUpRn = true;
+                Pawn.jobs.EndCurrentJob(JobCondition.Succeeded);
+            } return; }
         if (Pawn.CurJob?.def == JobDefOf.AttackStatic)
         {
             if (StallAttack) { Pawn.stances.curStance = new Stance(); return; }
@@ -188,6 +194,9 @@ public sealed class FiringWorld : IDisposable
 namespace HarmonyLib
 {
     public enum MethodType { Setter }
+    public static class AccessTools { public static Type TypeByName(string name) => typeof(FiringWorld).Assembly.GetType(name); }
+    public sealed class Harmony { public Harmony(string id) { } public void Patch(MethodInfo method, HarmonyMethod prefix) { } }
+    public sealed class HarmonyMethod { public HarmonyMethod(Type type, string method) { } }
     [AttributeUsage(AttributeTargets.Class)] public sealed class HarmonyPatch : Attribute
     { public HarmonyPatch(Type type, string name) { } public HarmonyPatch(Type type, string name, MethodType method) { } }
 }
@@ -204,12 +213,26 @@ namespace Verse
     public class Faction { public static readonly Faction OfPlayer = new Faction(); }
     public class RaceProperties { public bool Humanlike = true; }
     public class Drafter { public bool FireAtWill = true; }
+    public class ThingDef { public string defName = "Gun_AssaultRifle"; public bool IsRangedWeapon = true; }
+    public class ThingComp { }
+    public class ThingWithComps
+    {
+        public ThingDef def = new ThingDef();
+        public List<ThingComp> AllComps = new List<ThingComp>();
+    }
+    public class Equipment { public ThingWithComps Primary = new ThingWithComps(); }
+    public static class DefDatabase<T> where T : class
+    {
+        public static T GetNamedSilentFail(string name) => new Verse.AI.JobDef(name)
+            { driverClass = typeof(CombatExtended.JobDriver_SetUpBipod) } as T;
+    }
     public class Pawn
     {
         public readonly FiringWorld World; public readonly Verb Verb; public readonly Pawn_JobTracker jobs;
         public readonly Pawn_PathFollower pather = new Pawn_PathFollower(); public readonly StanceTracker stances = new StanceTracker();
         public readonly Drafter drafter = new Drafter(); public readonly RaceProperties RaceProps = new RaceProperties();
         public Faction Faction = Faction.OfPlayer; public bool Spawned = true, Drafted = true, Dead, Downed, InMentalState;
+        public readonly Equipment equipment = new Equipment();
         public Map Map; public IntVec3 Position; public Job CurJob => jobs.curJob;
         public Pawn(FiringWorld world) { World = world; Verb = new Verb(world); jobs = new Pawn_JobTracker(this); }
     }
@@ -239,7 +262,7 @@ namespace Verse
         public override int GetHashCode() => HashCode.Combine(x, y, z);
         public static bool operator ==(IntVec3 a, IntVec3 b) => a.Equals(b); public static bool operator !=(IntVec3 a, IntVec3 b) => !a.Equals(b);
     }
-    public struct LocalTargetInfo { public IntVec3 Cell; public static implicit operator LocalTargetInfo(IntVec3 cell) => new LocalTargetInfo { Cell = cell }; }
+    public struct LocalTargetInfo { public ThingWithComps Thing; public IntVec3 Cell; public static implicit operator LocalTargetInfo(ThingWithComps thing) => new LocalTargetInfo { Thing = thing }; public static implicit operator LocalTargetInfo(IntVec3 cell) => new LocalTargetInfo { Cell = cell }; }
     public class Building_Door { public bool Open => true; public bool IsForbiddenToPass(Pawn p) => false; public bool PawnCanOpen(Pawn p) => true; }
     public class TickManager { public bool Paused; public int TicksGame; }
     public static class Find { public static Map CurrentMap; public static TickManager TickManager = new TickManager(); }
@@ -258,7 +281,7 @@ namespace Verse.AI
 {
     public enum JobCondition { None, Succeeded, InterruptForced }
     public enum PathEndMode { OnCell }
-    public class JobDef { public readonly string defName; public JobDef(string name) { defName = name; } }
+    public class JobDef { public Type driverClass; public readonly string defName; public JobDef(string name) { defName = name; } }
     public class Job
     {
         static int nextId;
@@ -321,6 +344,7 @@ namespace Verse.AI
                 CleanupCurrentJob(condition);
             }
             curJob = next;
+            if (next?.def.defName == "JobDef_SetUpBipod") pawn.World.SetupRemaining = 5;
             pawn.World.Events.Add("job-start:" + next?.def?.defName);
             if (next?.def == JobDefOf.AttackStatic) pawn.World.BeginAttack(next);
         }
@@ -386,8 +410,8 @@ namespace RimFront
     { internal static bool CanCast(Verb verb) => !verb.World.InvalidAim; internal static void Update(Pawn p, float yaw, float pitch) { } internal static void Clear(Pawn p = null) { } }
     internal static class NativeView
     {
-        internal static bool Active, FireHeld; internal static float Yaw = 0; internal static InputCommand Command;
-        internal static void Start(Pawn p) { Active = true; FireHeld = false; Command = null; }
+        internal static Pawn ControlledPawn; internal static bool Active, FireHeld; internal static float Yaw = 0; internal static InputCommand Command;
+        internal static void Start(Pawn p) { ControlledPawn = p; Active = true; FireHeld = false; Command = null; }
         internal static void Stop() { Active = false; } internal static InputCommand Update() => Command;
         internal static void OnGUI(string text) { }
     }
@@ -415,4 +439,28 @@ namespace RimFront
     internal static class NativeAimTargeting { internal static void Dispose() { } }
     internal static class NativePawns { internal static void ClearAimCache() { } }
     internal static class NativePawnAnimation { internal static void Dispose() { } }
+}
+
+namespace CombatExtended
+{
+    public sealed class Settings { public bool Enabled = true; public bool BipodMechanics => Enabled; }
+    public static class Controller { public static Settings settings = new Settings(); }
+    public sealed class JobDriver_SetUpBipod { }
+    public sealed class BipodComp : Verse.ThingComp
+    {
+        public bool IsSetUpRn, ShouldSetUpint;
+        public int DeployCalls, CloseCalls;
+        public bool ShouldSetUp => ShouldSetUpint && !IsSetUpRn;
+        public void DeployUpBipod() { ShouldSetUpint = true; DeployCalls++; }
+        public void CloseBipod() { ShouldSetUpint = IsSetUpRn = false; CloseCalls++; }
+    }
+}
+namespace RimFront
+{
+    // Geometry classification is exercised against the compiled renderer in NativePawnTests.
+    internal static class NativeWeapons
+    {
+        internal enum WeaponKind { Rifle, Shotgun, Smg, Sniper, Heavy, Launcher, Pistol }
+        internal static WeaponKind ClassifyName(string name, bool ranged) => WeaponKind.Rifle;
+    }
 }

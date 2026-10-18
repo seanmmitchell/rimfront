@@ -168,7 +168,8 @@ namespace RimFront
                 strafe = paused ? 0 : (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f),
                 fire = !paused && !waitForInitialMouseUp && Input.GetMouseButton(0),
                 reload = !paused && Input.GetKeyDown(KeyCode.R),
-                cycleFireMode = !paused && Input.GetKeyDown(KeyCode.F)
+                cycleFireMode = !paused && Input.GetKeyDown(KeyCode.F),
+                toggleBipod = !paused && Input.GetKeyDown(KeyCode.V)
             };
         }
 
@@ -227,6 +228,8 @@ namespace RimFront
             {
                 nextHudRefresh = Time.realtimeSinceStartup + 0.1f;
                 weapon = CombatAdapter.Describe(pawn);
+                string mounting = NativeBipods.Status(pawn);
+                if (mounting != "") weapon.status += " / " + mounting;
                 nameText = pawn.LabelShortCap.ToString();
                 healthText = Mathf.RoundToInt(pawn.health.summaryHealth.SummaryHealthPercent * 100f) + "%";
             }
@@ -238,11 +241,11 @@ namespace RimFront
                 Text.Font = GameFont.Small;
                 Text.Anchor = TextAnchor.MiddleLeft;
                 float width = UI.screenWidth, height = UI.screenHeight;
-                Widgets.DrawBoxSolid(new Rect(16, 16, 620, 56), new Color(0.055f, 0.07f, 0.06f, 0.88f));
+                Widgets.DrawBoxSolid(new Rect(16, 16, 710, 56), new Color(0.055f, 0.07f, 0.06f, 0.88f));
                 GUI.color = new Color(0.85f, 0.91f, 0.79f);
                 Widgets.Label(new Rect(28, 19, 510, 24), "RIMFRONT  /  " + nameText + "  /  " + healthText + "  /  " + Mathf.RoundToInt(1f / Math.Max(0.001f, frameSeconds)) + " FPS");
                 GUI.color = Color.white;
-                Widgets.Label(new Rect(28, 42, 600, 24), "WASD move · Mouse aim · LMB fire · R reload · F mode · Space pause · Esc exit");
+                Widgets.Label(new Rect(28, 42, 690, 24), "WASD move · Mouse aim · LMB fire · R reload · F mode · Space pause · Esc exit");
                 Widgets.DrawBoxSolid(new Rect(width - 340, 16, 324, 31), new Color(0.055f, 0.07f, 0.06f, 0.88f));
                 Widgets.Label(new Rect(width - 328, 18, 304, 26), (AnalogMovement.Active ? "Analog" : "Native path") + " / " + NativeScene.DrawCalls + " draws / " + NativeScene.CachedChunks + " chunks");
                 Widgets.DrawBoxSolid(new Rect(16, height - 86, 620, 70), new Color(0.055f, 0.07f, 0.06f, 0.88f));

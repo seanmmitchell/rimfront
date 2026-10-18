@@ -109,7 +109,8 @@ namespace RimFront
             finally { pawn.pather.nextCellCostTotal = originalCost; }
             if (float.IsNaN(payment) || float.IsInfinity(payment) || payment <= 0) return;
             bool diagonalCost = costCell.x != occupied.x && costCell.z != occupied.z;
-            double distance = Math.Min(.25, payment * (diagonalCost ? Math.Sqrt(2) : 1) / Math.Max(1, cost));
+            double distance = Math.Min(.25 * (RimFrontGame.Active?.MovementSpeedFactor ?? 1f),
+                payment * (diagonalCost ? Math.Sqrt(2) : 1) / Math.Max(1, cost));
             AnalogCollision.Point moved = AnalogCollision.Move(position.x, position.z, direction.X * distance, direction.Z * distance, radius, Solid);
             position.x = (float)moved.X; position.z = (float)moved.Z;
             IsMoving = (position - previous).sqrMagnitude > .00000001f;

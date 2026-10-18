@@ -132,8 +132,13 @@ namespace RimFront
             => !nativeIntercepted && !projectileDestroyed && projectileSpawned && blockerSpawned && sameMap;
         internal static bool DeterministicWorld(bool building, bool fullFill, bool openDoor, bool intendedHit)
             => intendedHit || (building && fullFill && !openDoor);
+        internal static bool CrouchCover(bool crouching, bool building, string name)
+            => crouching && building && name != null
+                && (name.IndexOf("barricade", StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf("sandbag", StringComparison.OrdinalIgnoreCase) >= 0);
         static bool DeterministicWorld(Thing thing, Projectile projectile)
-            => DeterministicWorld(thing is Building, thing.def.Fillage == FillCategory.Full,
+            => CrouchCover(NativeView.IsCrouching(projectile.intendedTarget.Thing as Pawn), thing is Building, thing.def.defName)
+                || DeterministicWorld(thing is Building, thing.def.Fillage == FillCategory.Full,
                 thing is Building_Door door && door.Open,
                 thing == projectile.intendedTarget.Thing && (projectile.HitFlags & ProjectileHitFlags.IntendedTarget) != 0);
 
@@ -244,6 +249,26 @@ namespace RimFront
             static void Postfix(Projectile __instance, Thing launcher, LocalTargetInfo usedTarget, LocalTargetInfo intendedTarget,
                 ProjectileHitFlags hitFlags, Vector3 ___origin, ref Vector3 ___destination, ref int ___ticksToImpact, ref int ___lifetime)
             {
+                if (launching == null && NativeView.Active && intendedTarget.Thing == NativeView.ControlledPawn
+                    && launcher is Pawn shooter && shooter != NativeView.ControlledPawn
+                    && __instance.GetType() == typeof(Bullet) && Supports(__instance.def))
+                {
+                    try
+                    {
+                        Vector3 incomingOrigin = ___origin;
+                        incomingOrigin.y = NativeScene.GetPawnHeight(shooter) * .85f;
+                        Vector3 incomingTarget = ___destination;
+                        incomingTarget.y = NativeScene.GetPawnHeight(NativeView.ControlledPawn) * .65f;
+                        Shot incoming = Create(incomingOrigin, incomingTarget);
+                        if (incoming != null)
+                        {
+                            __instance.HitFlags = CollisionFlags(__instance.HitFlags);
+                            shots.Remove(__instance); shots.Add(__instance, incoming);
+                        }
+                    }
+                    catch (Exception error) { Warn(error); }
+                    return;
+                }
                 if (launching == null || __instance.GetType() != typeof(Bullet) || !Supports(__instance.def)
                     || launcher != launching.CasterPawn
                     || !NativeManualAim.TryGet(launching, out Vector3 point, out float yaw, out float pitch)) return;

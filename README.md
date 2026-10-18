@@ -1,6 +1,6 @@
 # RimFront 0.6.3 test build
 
-The current source includes a manual-reload fix for deferred native attack orders, 52 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
+The current source includes a manual-reload fix for deferred native attack orders, 59 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 
@@ -15,6 +15,7 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 | Input | Action |
 | --- | --- |
 | WASD | Move relative to the view |
+| Hold Left Ctrl | Crouch behind cover; release to stand |
 | Mouse | Look |
 | Left mouse | Attack at the crosshair |
 | R | Request a supported native CE reload |
@@ -50,7 +51,7 @@ CE retains its own accuracy, ballistics, ammunition, armor, shields, damage, war
 | Auto | Repeats while held; release cancels remaining fire after the first shot |
 | Fixed | Uses the weapon's native mode; no alternate modes are invented |
 
-Switching modes cancels the owned attack, preserves cooldown, clears queued fire and requires releasing a held trigger before firing again. Native reload jobs continue. Pause and stale-input protection prevent a held button from becoming a new queued press. A quick click retains its initial warmup/shot; movement and reload requests explicitly cancel an owned warmup.
+Switching modes cancels the owned attack, preserves cooldown, clears queued fire and requires releasing a held trigger before firing again. Native reload jobs continue. Pause and stale-input protection prevent a held button from becoming a new queued press. A quick click retains its initial warmup/shot; reload requests explicitly cancel an owned warmup. Movement cancels it when **Move while firing** is disabled or the attack is melee.
 
 Version 0.6.2 restores held Auto/Fixed fire after fresh input returns from a slow frame. The stale tick still cancels its old attack, but no longer latches Auto off until mouse release. Recovery does not create a new Semi-auto/Burst click; explicit pause and mode-switch release requirements remain in force.
 
@@ -69,6 +70,12 @@ Owned CE ballistic contacts use displayed pawn and world geometry while retainin
 Analog movement is enabled by default. It uses continuous coordinates, native movement costs, swept collision and a conservative square body footprint. Cell changes still notify the game, doors wait until fully open, and native pawn-traffic rules apply. Travel is capped at 0.25 cells per tick; fogged cells remain inaccessible. The square footprint can be conservative in tight corners.
 
 Disable **True analog movement** under **Options → Mod settings → RimFront**, then reenter, to use native path movement. Unsupported CE coordinate contracts or oversized bodies also select this fallback with a reason. Both modes follow authoritative movement; compatibility with other movement mods requires testing.
+
+**Move while firing** is on by default in **Options → Mod settings → RimFront** and applies immediately. Ranged warmup, bursts and cooldown can continue while walking in either movement mode, at **50% walking speed**. Disable the option to restore movement cancelling firing. Reloads and bipod setup remain stationary; moving releases a manual brace.
+
+Hold **Left Ctrl** to crouch; release to stand. This always-available control lowers the eye/shot origin to 0.53 tiles and caps the body/collision height at 0.64 tiles. Crouching halves walking speed (25% speed when also firing). Barricades have a solid rear panel; frontal ray samples verify at least 90% coverage of the crouched silhouette behind stock barricade and sandbag models. Position behind the cover matters; elevated or flanking shots can still reach you.
+
+CE uses lowered native collision bounds. Stock straight vanilla bullets aimed at the controlled pawn also use the displayed body and cover geometry; native hit rolls and damage remain authoritative. Explosive, arcing and custom trajectories retain their existing limitations. Posture is session-local and resets on exit. Live game/CE confirmation remains pending.
 
 ## Scene, equipment and effects
 

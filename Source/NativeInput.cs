@@ -11,6 +11,7 @@ namespace RimFront
         public float yaw;
         public float pitch;
         public bool fire;
+        public bool crouch;
         public bool reload;
         public bool cycleFireMode;
         public bool toggleBrace;

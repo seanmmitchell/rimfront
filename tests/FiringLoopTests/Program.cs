@@ -47,6 +47,13 @@ internal static class Program
             ("bipod-toggle-foreign-job", BipodForeignJob),
             ("bipod-toggle-movement-cancels-click", BipodMovingClick),
             ("movement-cancels-warmup", Movement),
+            ("moving-fire-warmup-burst-auto", MovingFire),
+            ("moving-fire-single-burst-trigger", MovingClick),
+            ("moving-fire-native-path", MovingNative),
+            ("moving-fire-toggle-immediate", MovingToggle),
+            ("moving-fire-ownership-stun-stale", MovingSafety),
+            ("crouch-speed-and-release", CrouchSpeed),
+            ("moving-fire-production-hooks", MovingHooks),
             ("invalid-aim-recovery", InvalidAim),
             ("stalled-attack-recovery", StalledAttack),
             ("multiple-ticks-per-frame", MultipleTicks),
@@ -535,6 +542,7 @@ internal static class Program
     static void Movement()
     {
         using var world = Loaded();
+        RimFront.RimFrontMod.Settings.movingFire = false;
         world.WarmupTicks = 15;
         world.Frame(held: true); world.Tick();
         world.Frame(held: true, forward: 1); Run(world, 20, forward: 1);
@@ -543,6 +551,95 @@ internal static class Program
         Until(world, () => world.Shots >= 3, "Held Auto failed to resume after movement stopped.");
     }
 
+    static void MovingFire()
+    {
+        using var world = Loaded();
+        world.Frame(held: true, forward: 1);
+        for (int i = 0; i < 40; i++) { world.Tick(); world.Frame(held: true, forward: 1); }
+        Require(world.Shots >= 9 && world.AttackOrders >= 3, "walking interrupted repeated auto bursts");
+        Require(RimFront.AnalogMovement.IsMoving && world.Game.MovementSpeedFactor == .5f, "firing must walk at half speed");
+    }
+    static void MovingClick()
+    {
+        foreach (string mode in new[] { "Single", "Burst" })
+        {
+            using var world = Loaded(mode);
+            world.Frame(held: true, strafe: 1);
+            for (int i = 0; i < 40; i++) { world.Tick(); world.Frame(held: true, strafe: 1); }
+            Require(world.Shots == (mode == "Single" ? 1 : 3), "walking manufactured an extra trigger press");
+        }
+    }
+    static void MovingNative()
+    {
+        using var world = Loaded();
+        world.Game.Release("native path test");
+        RimFront.RimFrontMod.Settings.analogMovement = false;
+        world.Game.Control(world.Pawn); world.Frame(held: true, forward: 1); world.Tick();
+        Require(world.Pawn.pather.Moving && world.Pawn.CurJob.def == RimWorld.JobDefOf.AttackStatic, "native walking replaced attack ownership");
+        var stance = (Verse.Stance_Busy)world.Pawn.stances.curStance;
+        Require(world.Game.AllowsAttackMovement(stance), "native warmup still blocks walking");
+        world.Frame(held: true); world.Tick();
+        Require(!world.Pawn.pather.Moving, "native walking did not stop on WASD release");
+    }
+    static void MovingToggle()
+    {
+        using var world = Loaded();
+        world.Frame(held: true, forward: 1); world.Tick();
+        RimFront.RimFrontMod.Settings.movingFire = false;
+        world.Tick();
+        Require(world.Shots == 0 && world.Pawn.CurJob?.def != RimWorld.JobDefOf.AttackStatic, "opt-out did not cancel moving warmup immediately");
+        RimFront.RimFrontMod.Settings.movingFire = true;
+        for (int i = 0; i < 12; i++) { world.Tick(); world.Frame(held: true, forward: 1); }
+        Require(world.Shots > 0, "re-enabled moving fire failed");
+    }
+    static void MovingSafety()
+    {
+        using var world = Loaded(); world.Frame(held: true, forward: 1); world.Tick();
+        var stance = (Verse.Stance_Busy)world.Pawn.stances.curStance;
+        Require(!world.Game.AllowsAttackMovement(new Verse.Stance_Warmup(1, default, world.Verb)), "foreign stance was unlocked");
+        world.Pawn.stances.stunner.Stunned = true;
+        Require(!world.Game.AllowsAttackMovement(stance), "stun was bypassed");
+        world.Pawn.stances.stunner.Stunned = false;
+        world.ExpireInput(); world.Tick();
+        Require(!RimFront.AnalogMovement.IsMoving && !world.Game.AllowsAttackMovement(stance), "stale moving fire survived");
+        world.Frame(release: true); Require(!world.Active, "moving fire prevented exit");
+    }
+    static void MovingHooks()
+    {
+        using var world = Loaded(); world.Frame(held: true, forward: 1, crouch: true); world.Tick();
+        var busy = (Verse.Stance_Busy)world.Pawn.stances.curStance;
+        bool Busy(Verse.Stance_Busy stance)
+        {
+            object[] args = { stance, true };
+            typeof(RimFront.MovingFireStance).GetMethod("Postfix", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(null, args);
+            return (bool)args[1];
+        }
+        float Payment(Verse.Pawn_PathFollower pather)
+        {
+            object[] args = { pather, 4f };
+            typeof(RimFront.ControlledMovementPenalty).GetMethod("Postfix", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(null, args);
+            return (float)args[1];
+        }
+        Require(!Busy(busy) && Payment(world.Pawn.pather) == 1f, "actual movement hooks did not unlock/penalize owned fire");
+        Require(Busy(new Verse.Stance_Warmup(1, default, world.Verb)) && Payment(new Verse.Pawn_PathFollower()) == 4f, "actual movement hooks affected another pawn/stance");
+        world.Pawn.stances.stunner.Stunned = true;
+        Require(Busy(busy), "actual hook bypassed stun"); world.Pawn.stances.stunner.Stunned = false;
+        world.ExpireInput(); Require(Busy(busy), "actual hook bypassed stale input");
+        world.Frame(held: true, forward: 1); world.Paused = true; Require(Busy(busy), "actual hook bypassed pause");
+        world.Paused = false; RimFront.RimFrontMod.Settings.movingFire = false; Require(Busy(busy), "actual hook bypassed disabled setting");
+        world.Frame(release: true); Require(Busy(busy) && Payment(world.Pawn.pather) == 4f, "actual hooks leaked across exit");
+    }
+    static void CrouchSpeed()
+    {
+        using var world = Loaded(); world.Frame(crouch: true, forward: 1); world.Tick();
+        Require(world.Game.MovementSpeedFactor == .5f, "crouching must halve walking speed");
+        world.Frame(crouch: true, held: true, forward: 1); world.Tick();
+        Require(world.Game.MovementSpeedFactor == .25f, "crouch and firing penalties must combine");
+        world.Frame(); world.Tick();
+        Require(world.Game.MovementSpeedFactor == .5f, "released crouch retained its additional penalty");
+        Run(world, 20, held: false);
+        Require(world.Game.MovementSpeedFactor == 1f, "finished attack retained a movement penalty");
+    }
     static void InvalidAim()
     {
         using var world = Loaded();
@@ -654,6 +751,7 @@ internal static class Program
     static void DeferredMovement()
     {
         using var world = Loaded("Single");
+        RimFront.RimFrontMod.Settings.movingFire = false;
         DeferAttack(world, shortClick: true);
         world.Frame(forward: 1); world.Tick();
         world.HoldQueuedJobs = false;

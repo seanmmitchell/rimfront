@@ -138,3 +138,11 @@ Retain failed cases as reproducible issues. Passing startup or a small subset do
 - During ongoing movement/cache expansion, mine rock near the observer. Confirm direct edits update before distant missing chunks, and aim/projectile contacts follow each displayed slope throughout the remaining rebuilds.
 - Aim above fog at a mountain exterior. Confirm the crosshair reaches the slope and labels it only as a mountain; low rays still stop at fog and never identify hidden ore, pawns or objects.
 - Move through dense vegetation at 120 tiles with more than 8,192 candidates in range. Confirm nearby plants remain visible when later chunks are visited. The 4,096-card presentation limit remains; this check specifically covers nearest-candidate retention.
+
+## Moving fire and crouching
+
+- With Move while firing enabled (default), walk/strafe during warmup, a full burst and sustained Auto fire. Check 50% movement speed in both analog and native path modes. Semi/Burst must still require a new click; releasing WASD stops movement without resetting warmup.
+- Disable the option during moving warmup: the attack must cancel immediately. Re-enable and confirm held Auto recovers. R reload, G auto setup and V brace retain their existing ownership and stationary behavior. Stun, pause, stale input, external jobs and exit must not permit movement/fire leakage.
+- Hold Left Ctrl behind stock barricades and sandbags from both sides, then release. Check camera, hands, muzzle and body height agree. Crouch walking is half speed, or quarter speed while firing. Repeat with small/large humanlike body sizes, native path mode and CE enabled/disabled.
+- Have an enemy fire stock straight vanilla bullets and CE projectiles at the crouched pawn. Confirm cover intercepts low frontal shots and standing restores the original target height. Repeat crouching after an incoming shot is already in flight. Check flanking/high shots and open ground still cause native damage; explosive/custom weapons retain native trajectories.
+- Exit/reenter while crouched and while firing; confirm standing posture and normal movement speed return. Repeat pause/focus-loss/dialog checks. Automated geometry coverage is not a live combat or GPU certification.

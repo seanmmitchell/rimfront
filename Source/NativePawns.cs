@@ -62,7 +62,8 @@ namespace RimFront
             NativePawnRig.Form form = NativePawnModels.ClassifyPawn(pawn);
             float scale = NativeScene.PawnScale(pawn);
             bool lying = pawn.Dead || pawn.Downed || pawn.GetPosture().Laying();
-            if (!lying) return .04f + NativePawnModels.BaseHeight(form) * scale;
+            if (!lying) return .04f + NativePawnModels.BaseHeight(form)
+                * NativeStance.VerticalScale(NativePawnModels.BaseHeight(form), scale, NativeView.IsCrouching(pawn));
             float width = NativePawnModels.BaseWidth(form);
             return LyingRootHeight(width, scale, pawn.CurrentBed() != null) + width * .5f * scale;
         }
@@ -129,7 +130,8 @@ namespace RimFront
             float scale = NativeScene.PawnScale(pawn);
             Matrix4x4 root = corpse || animation.Lying
                 ? LyingRoot(pawn, appearance.Form, animation.FacingYaw, corpse, ref position)
-                : Matrix4x4.TRS(position, Quaternion.Euler(0, animation.FacingYaw, 0), new Vector3(scale, scale, scale));
+                : Matrix4x4.TRS(position, Quaternion.Euler(0, animation.FacingYaw, 0), new Vector3(scale,
+                    NativeStance.VerticalScale(NativePawnModels.BaseHeight(appearance.Form), scale, NativeView.IsCrouching(pawn)), scale));
             return TryAimGeometry(appearance, animation, standing, parts, articulate, root, eye, yaw, pitch, out ahead);
         }
 
@@ -303,7 +305,8 @@ namespace RimFront
             Matrix4x4 root;
             if (lying)
                 root = LyingRoot(pawn, model.Appearance.Form, animation.FacingYaw, corpse, ref position);
-            else root = Matrix4x4.TRS(position, rotation, new Vector3(scale, scale, scale));
+            else root = Matrix4x4.TRS(position, rotation, new Vector3(scale,
+                NativeStance.VerticalScale(NativePawnModels.BaseHeight(model.Appearance.Form), scale, NativeView.IsCrouching(pawn)), scale));
 
             bool articulate = (RimFrontMod.Settings?.animatePawns ?? true) && !corpse && !animation.Dead
                 && distanceSquared < 14f * 14f && detailed < MaximumDetailedPawns;

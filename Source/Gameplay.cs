@@ -32,6 +32,17 @@ namespace RimFront
             && candidate.Faction == Faction.OfPlayer && candidate.Drafted && !candidate.Dead
             && !candidate.Downed && !candidate.InMentalState && candidate.RaceProps.Humanlike;
         public bool Controls(Pawn candidate) => pawn == candidate;
+        bool MovingFireEnabled => RimFrontMod.Settings?.movingFire ?? true;
+        bool CanMoveAndFire => MovingFireEnabled && pawn?.stances?.stunner?.Stunned != true
+            && pawn?.equipment?.Primary?.def.IsRangedWeapon == true;
+        bool OwnsRangedAttack => pawn?.CurJob == ownedJob && ownedJob?.def == JobDefOf.AttackStatic
+            && ownedJob.verbToUse != null && !ownedJob.verbToUse.IsMeleeAttack;
+        bool FreshMovementInput => input != null && !Find.TickManager.Paused
+            && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds);
+        internal bool AllowsAttackMovement(Stance_Busy stance) => FreshMovementInput && CanMoveAndFire
+            && OwnsRangedAttack && pawn.stances.curStance == stance && stance.verb == ownedJob.verbToUse;
+        internal float MovementSpeedFactor => (input?.crouch == true ? .5f : 1f)
+            * (CanMoveAndFire && OwnsRangedAttack ? .5f : 1f);
         internal bool NeedsNativeJobControl
         {
             get
@@ -61,6 +72,7 @@ namespace RimFront
                 candidate.jobs.EndCurrentJob(JobCondition.InterruptForced);
                 candidate.pather?.StopDead();
                 string fallback = null;
+                _ = AnalogCombatCompatibility.Supported;
                 bool analog = (RimFrontMod.Settings?.analogMovement ?? true) && AnalogMovement.Start(candidate, out fallback);
                 movementMode = analog ? "Analog" : "Native path";
                 NativeBipods.Start(candidate);
@@ -183,7 +195,7 @@ namespace RimFront
             resumeCurrent = false;
             bool freshInput = input != null && !requireFireRelease && !pendingReload && !pendingFireMode && !pendingBrace && !pendingBipod
                 && !Find.TickManager.Paused && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds)
-                && Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f;
+                && (CanMoveAndFire || Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f);
             pendingFire |= NativeAttackLifecycle.RetryAfterReload(freshInput, attackHasFired,
                 attackInitialShotTick, ownedJob.verbToUse?.LastShotTick ?? attackInitialShotTick);
             if (NativeFiringTrace.Enabled)
@@ -339,11 +351,12 @@ namespace RimFront
                     return;
                 }
                 bool moving = Math.Abs(input.forward) + Math.Abs(input.strafe) >= .1f;
-                if (moving && (input.fire || pendingFire))
+                bool movementBlocksFire = moving && !CanMoveAndFire;
+                if (movementBlocksFire && (input.fire || pendingFire))
                     firingTrace.Event(pawn, "trigger-blocked-movement", "Fire input present; native firing waits for movement to stop.");
-                // Movement cancels queued clicks even while a native reload/busy
-                // stance owns the pawn. Do this before that path returns below.
-                if (moving) pendingFire = false;
+                // Preserve legacy cancellation when disabled; movement during reload
+                // still discards queued clicks before the busy path returns.
+                if (movementBlocksFire || (moving && CombatAdapter.IsReloading(pawn))) pendingFire = false;
                 if (pendingReload) pendingFire = false;
                 if (pawn.CurJob == ownedJob && ownedJob?.def == JobDefOf.AttackStatic)
                 {
@@ -356,7 +369,7 @@ namespace RimFront
                     attackIdleTicks = NativeAttackLifecycle.NextIdleTicks(attackIdleTicks, progressing);
                     previousAttackStance = busy; previousAttackTicks = busy?.ticksLeft ?? 0;
                     previousShotTick = verb?.LastShotTick ?? -1;
-                    if (NativeAttackLifecycle.ShouldCancel(input.fire || attackRequiresTriggerPress, attackHasFired, moving, pendingReload,
+                    if (NativeAttackLifecycle.ShouldCancel(input.fire || attackRequiresTriggerPress, attackHasFired, movementBlocksFire, pendingReload,
                         verb == null || !NativeManualAim.CanCast(verb), attackIdleTicks))
                     {
                         bool stalled = attackIdleTicks >= NativeAttackLifecycle.MaximumIdleTicks;
@@ -385,14 +398,16 @@ namespace RimFront
                 }
                 if (CombatAdapter.IsReloading(pawn) || pawn.stances.curStance is Stance_Busy)
                 {
-                    AnalogMovement.Halt();
+                    if (!CombatAdapter.IsReloading(pawn) && CanMoveAndFire && OwnsRangedAttack)
+                    { Move(firing: true); NativeManualAim.Update(pawn, input.yaw, input.pitch); }
+                    else { AnalogMovement.Halt(); pawn.pather?.StopDead(); }
                     if (CombatAdapter.IsReloading(pawn)) message = "Reloading.";
                     else if (pawn.stances.curStance is Stance_Busy busy)
                         message = busy.verb?.Bursting == true ? "Firing."
                             : (busy is Stance_Warmup ? "Aiming" : "Weapon cooldown") + " (" + (Math.Max(0, busy.ticksLeft) / 60f).ToString("0.0") + "s).";
                     return;
                 }
-                if (!moving && NativeTriggerPolicy.ShouldStart(input.fire, pendingFire, NativeFireModes.RequiresTriggerPress(pawn)))
+                if (!movementBlocksFire && NativeTriggerPolicy.ShouldStart(input.fire, pendingFire, NativeFireModes.RequiresTriggerPress(pawn)))
                 {
                     AnalogMovement.Halt();
                     if (pawn.CurJob == ownedJob && ownedJob?.def == JobDefOf.AttackStatic) return;
@@ -400,59 +415,79 @@ namespace RimFront
                     StopOwnedJob();
                     Job attack = CombatAdapter.CreateAttack(pawn, input.yaw, input.pitch, out message);
                     firingTrace.Event(pawn, attack == null ? "attack-create-failed" : "attack-created", message);
-                    if (attack != null) Order(attack);
+                    if (attack != null)
+                    {
+                        Order(attack);
+                        if (CanMoveAndFire && OwnsRangedAttack) { Move(firing: true); NativeManualAim.Update(pawn, input.yaw, input.pitch); }
+                    }
                     return;
                 }
-                float forward = input.forward, strafe = input.strafe;
-                if (AnalogMovement.Active)
-                {
-                    AnalogMovement.Tick(input.yaw, forward, strafe);
-                    message = AnalogMovement.IsMoving ? "Analog movement." : NativeWeaponBrace.Status(pawn) != "" ? NativeWeaponBrace.Status(pawn) : "Analog - ready.";
-                    return;
-                }
-                if (Math.Abs(forward) + Math.Abs(strafe) < 0.1)
-                {
-                    if (ownedJob?.def == JobDefOf.Goto) StopOwnedJob();
-                    return;
-                }
-                double x = Math.Sin(input.yaw) * forward + Math.Cos(input.yaw) * strafe;
-                double z = Math.Cos(input.yaw) * forward - Math.Sin(input.yaw) * strafe;
-                double scale = Math.Max(Math.Abs(x), Math.Abs(z));
-                if (scale < 0.01) return;
-                int stepX = (int)Math.Round(x / scale), stepZ = (int)Math.Round(z / scale);
-                IntVec3 destination = pawn.Position + new IntVec3(stepX, 0, stepZ);
-                if (!NativePassable(destination))
-                {
-                    if (ownedJob?.def == JobDefOf.Goto) StopOwnedJob();
-                    return;
-                }
-                // Keep a short native path ahead instead of completing a job every cell.
-                for (int i = 2; i <= 4; i++)
-                {
-                    IntVec3 next = pawn.Position + new IntVec3(stepX * i, 0, stepZ * i);
-                    if (!NativePassable(next)) break;
-                    destination = next;
-                }
-                // Keep the active native path instead of restarting it every frame.
-                if (pawn.CurJob == ownedJob && ownedJob?.def == JobDefOf.Goto)
-                {
-                    IntVec3 existing = ownedJob.targetA.Cell;
-                    if (existing != pawn.Position && Math.Sign(existing.x - pawn.Position.x) == stepX && Math.Sign(existing.z - pawn.Position.z) == stepZ
-                        && Math.Max(Math.Abs(existing.x - pawn.Position.x), Math.Abs(existing.z - pawn.Position.z)) >= 2) return;
-                    ownedJob.targetA = destination;
-                    pawn.pather.StartPath(destination, PathEndMode.OnCell);
-                    return;
-                }
-                Job move = JobMaker.MakeJob(JobDefOf.Goto, destination);
-                move.playerForced = true;
-                Order(move);
-                message = "Moving.";
+                Move();
             }
             catch (Exception e)
             {
                 Log.Error("[RimFront] Input failed safely: " + e);
                 Release("Input error; control released.");
             }
+        }
+
+        void Move(bool firing = false)
+        {
+            float forward = input.forward, strafe = input.strafe;
+            if (AnalogMovement.Active)
+            {
+                if (pawn.stances.stunner.Stunned) { AnalogMovement.Halt(); return; }
+                AnalogMovement.Tick(input.yaw, forward, strafe);
+                NativeView.ApplyPose();
+                message = AnalogMovement.IsMoving ? "Analog movement." : NativeWeaponBrace.Status(pawn) != "" ? NativeWeaponBrace.Status(pawn) : "Analog - ready.";
+                return;
+            }
+            if (Math.Abs(forward) + Math.Abs(strafe) < 0.1)
+            {
+                if (firing) pawn.pather?.StopDead();
+                else if (ownedJob?.def == JobDefOf.Goto) StopOwnedJob();
+                return;
+            }
+            double x = Math.Sin(input.yaw) * forward + Math.Cos(input.yaw) * strafe;
+            double z = Math.Cos(input.yaw) * forward - Math.Sin(input.yaw) * strafe;
+            double scale = Math.Max(Math.Abs(x), Math.Abs(z));
+            if (scale < 0.01) return;
+            int stepX = (int)Math.Round(x / scale), stepZ = (int)Math.Round(z / scale);
+            IntVec3 destination = pawn.Position + new IntVec3(stepX, 0, stepZ);
+            if (!NativePassable(destination))
+            {
+                if (firing) pawn.pather?.StopDead();
+                else if (ownedJob?.def == JobDefOf.Goto) StopOwnedJob();
+                return;
+            }
+            // Keep a short native path ahead instead of completing a job every cell.
+            for (int i = 2; i <= 4; i++)
+            {
+                IntVec3 next = pawn.Position + new IntVec3(stepX * i, 0, stepZ * i);
+                if (!NativePassable(next)) break;
+                destination = next;
+            }
+            // AttackStatic keeps ownership of the verb while the native pather walks.
+            if (firing)
+            {
+                if (!pawn.pather.Moving || pawn.pather.Destination.Cell != destination)
+                    pawn.pather.StartPath(destination, PathEndMode.OnCell);
+                return;
+            }
+            // Keep the active native path instead of restarting it every frame.
+            if (pawn.CurJob == ownedJob && ownedJob?.def == JobDefOf.Goto)
+            {
+                IntVec3 existing = ownedJob.targetA.Cell;
+                if (existing != pawn.Position && Math.Sign(existing.x - pawn.Position.x) == stepX && Math.Sign(existing.z - pawn.Position.z) == stepZ
+                    && Math.Max(Math.Abs(existing.x - pawn.Position.x), Math.Abs(existing.z - pawn.Position.z)) >= 2) return;
+                ownedJob.targetA = destination;
+                pawn.pather.StartPath(destination, PathEndMode.OnCell);
+                return;
+            }
+            Job move = JobMaker.MakeJob(JobDefOf.Goto, destination);
+            move.playerForced = true;
+            Order(move);
+            message = "Moving.";
         }
 
         void Order(Job job)
@@ -489,7 +524,7 @@ namespace RimFront
                     if (deferred && requestedAttack && input != null && !requireFireRelease
                         && !pendingReload && !pendingFireMode && !pendingBrace && !pendingBipod && !Find.TickManager.Paused
                         && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds)
-                        && Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f
+                        && (CanMoveAndFire || Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f)
                         && (requestedVerb?.LastShotTick ?? initialShot) <= initialShot)
                         pendingFire = true; // Retry this accepted, unfired request with fresh aim.
                 }

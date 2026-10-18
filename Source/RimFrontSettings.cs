@@ -7,6 +7,7 @@ namespace RimFront
     {
         public int extraViewRange = 0;
         public bool analogMovement = true;
+        public bool movingFire = true;
         public bool animatePawns = true;
         public bool spritePawns = false;
         public bool shieldHaze = true;
@@ -25,6 +26,7 @@ namespace RimFront
             Scribe_Values.Look(ref extraViewRange, "extraViewRange", 0);
             extraViewRange = ViewRange.Step(extraViewRange);
             Scribe_Values.Look(ref analogMovement, "analogMovement", true);
+            Scribe_Values.Look(ref movingFire, "movingFire", true);
             Scribe_Values.Look(ref animatePawns, "animatePawns", true);
             Scribe_Values.Look(ref spritePawns, "spritePawns", false);
             Scribe_Values.Look(ref shieldHaze, "shieldHaze", true);
@@ -54,6 +56,10 @@ namespace RimFront
             listing.CheckboxLabeled("True analog movement (default)", ref analogMovement,
                 "Continuous movement with swept collisions and CE position integration. Disable to use native path movement.");
             listing.Label("Changes apply the next time you enter RimFront. An unsupported CE adapter automatically uses native movement.");
+            listing.Gap();
+            listing.CheckboxLabeled("Move while firing (default)", ref movingFire,
+                "Fire ranged weapons while walking at half speed. Applies immediately. Disable to make movement cancel firing. Reloads and bipod setup remain stationary.");
+            listing.Label("Hold Left Ctrl to crouch behind cover. Crouching also halves walking speed.");
             listing.Gap();
             listing.Label("Character rendering");
             listing.CheckboxLabeled("Use viewpoint-based 2D characters", ref spritePawns,

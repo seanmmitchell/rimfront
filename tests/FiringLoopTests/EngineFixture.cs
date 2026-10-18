@@ -41,6 +41,7 @@ public sealed class FiringWorld : IDisposable
     {
         RimFrontGame.Active?.Release("Fixture replaced.");
         CombatExtended.Controller.settings.Enabled = true;
+        RimFrontMod.Settings.movingFire = true; RimFrontMod.Settings.analogMovement = true;
         Log.Errors.Clear(); Log.Entries.Clear();
         Find.TickManager = new TickManager(); Find.CurrentMap = new Map();
         Pawn = new Pawn(this) { Map = Find.CurrentMap };
@@ -50,12 +51,12 @@ public sealed class FiringWorld : IDisposable
     }
 
     public void Frame(bool held = false, bool reload = false, bool cycleMode = false, bool paused = false,
-        float forward = 0, float strafe = 0, bool release = false, bool brace = false, bool bipod = false)
+        float forward = 0, float strafe = 0, bool release = false, bool brace = false, bool bipod = false, bool crouch = false)
     {
         Paused = paused; forcedAge = null;
         NativeView.FireHeld = held;
         NativeView.Command = new InputCommand { action = release ? "release" : "input", fire = held && !paused,
-            reload = reload, cycleFireMode = cycleMode, toggleBrace = brace, toggleBipod = bipod, forward = forward, strafe = strafe };
+            crouch = crouch, reload = reload, cycleFireMode = cycleMode, toggleBrace = brace, toggleBipod = bipod, forward = forward, strafe = strafe };
         Game.GameComponentUpdate();
         AssertNoErrors();
     }
@@ -195,7 +196,7 @@ public sealed class FiringWorld : IDisposable
 
 namespace HarmonyLib
 {
-    public enum MethodType { Setter }
+    public enum MethodType { Setter, Getter }
     public static class AccessTools { public static Type TypeByName(string name) => typeof(FiringWorld).Assembly.GetType(name); }
     public sealed class Harmony { public Harmony(string id) { } public void Patch(MethodInfo method, HarmonyMethod prefix) { } }
     public sealed class HarmonyMethod { public HarmonyMethod(Type type, string method) { } }
@@ -241,18 +242,19 @@ namespace Verse
     public class Verb
     {
         public readonly FiringWorld World; public readonly VerbProperties verbProps;
-        public bool Bursting; public int LastShotTick = -1, Remaining; public string Phase = "idle";
+        public bool IsMeleeAttack; public bool Bursting; public int LastShotTick = -1, Remaining; public string Phase = "idle";
         public Verb(FiringWorld world) { World = world; verbProps = new VerbProperties(world); }
         public void Reset() { World.ResetCount++; Bursting = false; Remaining = 0; Phase = "idle"; }
     }
     public class VerbProperties
     { readonly FiringWorld world; public VerbProperties(FiringWorld w) { world = w; } public int AdjustedCooldownTicks(Verb verb, Pawn pawn) => world.CooldownTicks; }
-    public class Stance { }
-    public class Stance_Busy : Stance { public int ticksLeft; public Verb verb; public Stance_Busy(int ticks, Verb v) { ticksLeft = ticks; verb = v; } }
+    public class Stance { public virtual bool StanceBusy => false; }
+    public class Stance_Busy : Stance { public override bool StanceBusy => true; public int ticksLeft; public Verb verb; public Stance_Busy(int ticks, Verb v) { ticksLeft = ticks; verb = v; } }
     public class Stance_Cooldown : Stance_Busy { public Stance_Cooldown(int ticks, LocalTargetInfo target, Verb verb) : base(ticks, verb) { } }
     public class Stance_Warmup : Stance_Busy { public Stance_Warmup(int ticks, LocalTargetInfo target, Verb verb) : base(ticks, verb) { } }
-    public class StanceTracker { public Stance curStance = new Stance(); public void SetStance(Stance stance) { curStance = stance; } }
-    public class Pawn_PathFollower { public void StopDead() { } public void StartPath(IntVec3 cell, PathEndMode mode) { } }
+    public class Stunner { public bool Stunned; }
+    public class StanceTracker { public Stunner stunner = new Stunner(); public Stance curStance = new Stance(); public void SetStance(Stance stance) { curStance = stance; } }
+    public class Pawn_PathFollower { public bool Moving; public LocalTargetInfo Destination; public void StopDead() { Moving = false; } public void StartPath(IntVec3 cell, PathEndMode mode) { Destination = cell; Moving = true; } }
     public readonly struct IntVec3 : IEquatable<IntVec3>
     {
         public readonly int x, y, z; public IntVec3(int x, int y, int z) { this.x = x; this.y = y; this.z = z; }
@@ -429,16 +431,17 @@ namespace RimFront
         internal static Pawn ControlledPawn; internal static bool Active, FireHeld; internal static float Yaw = 0; internal static InputCommand Command;
         internal static void Start(Pawn p) { ControlledPawn = p; Active = true; FireHeld = false; Command = null; }
         internal static void Stop() { Active = false; } internal static InputCommand Update() => Command;
-        internal static void OnGUI(string text) { }
+        internal static void ApplyPose() { } internal static void OnGUI(string text) { }
     }
     internal static class AnalogMovement
     {
         internal static bool Active, IsMoving;
-        internal static bool Start(Pawn p, out string fallback) { fallback = null; Active = true; return true; }
+        internal static bool Start(Pawn p, out string fallback) { fallback = null; Active = RimFrontMod.Settings.analogMovement; return Active; }
         internal static void Stop() { Active = IsMoving = false; } internal static void Halt() { IsMoving = false; }
         internal static void Tick(float yaw, float forward, float strafe) { IsMoving = Math.Abs(forward) + Math.Abs(strafe) >= .1f; }
     }
-    internal sealed class FixtureSettings { public bool analogMovement = true; }
+    internal static class AnalogCombatCompatibility { internal static bool Supported => true; }
+    internal sealed class FixtureSettings { public bool analogMovement = true, movingFire = true; }
     internal static class RimFrontMod { internal static readonly FixtureSettings Settings = new FixtureSettings(); }
     internal sealed class NativeFiringTrace
     {

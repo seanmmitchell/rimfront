@@ -2,7 +2,7 @@
 
 This executable compiles the repository's **actual `Source/Gameplay.cs`**, `NativeInput.cs`, and `NativeJobPolicy.cs`. It calls `GameComponentUpdate`, `GameComponentTick`, `BeforeNativeJobStart`, and `BeforeNativeJobCleanup` across successive frames/ticks. It does not reimplement the controller's trigger, pending-input, ownership, reload-resumption, or stale-input decisions in a test-only state machine.
 
-`EngineFixture.cs` substitutes the engine boundary: pawn/job/stance objects, input/rendering, equipped-weapon adapter, and a deterministic weapon scheduler. The scheduler supplies finite warmup/burst/cooldown jobs, magazine/reserve accounting, native reload transitions, and finite bipod setup. It invokes controller callbacks before native job replacement/cleanup and simulates the stale-job resume queue if resumption is allowed. Frame order matches the inspected 1.7 game: native tick, controller tick, then the next frame's input. Stale ages are injected without sleeping.
+`EngineFixture.cs` substitutes the engine boundary: pawn/job/stance objects, input/rendering, equipped-weapon adapter, and a deterministic weapon scheduler. The scheduler supplies finite warmup/burst/cooldown jobs, magazine/reserve accounting, native reload transitions, and finite bipod setup and a simulated bipod-toggle adapter. It invokes controller callbacks before native job replacement/cleanup and simulates the stale-job resume queue if resumption is allowed. Frame order matches the inspected 1.7 game: native tick, controller tick, then the next frame's input. Stale ages are injected without sleeping.
 
 ## What these tests establish
 
@@ -37,3 +37,5 @@ The 0.6.3 investigation corrected two fixture assumptions: ordered jobs can be a
 This is controller integration coverage with a simulated engine boundary. It does **not** execute Combat Extended's real reload driver, Harmony patch binding, Unity/Waylith input, projectile collision, or rendering. Changes in those dependencies can still escape the harness. Existing native metadata/helper checks complement it; live smoke tests with the installed CE build remain necessary, especially M60/bipod and last-round reloads.
 
 `scripts/test.ps1` runs the scenarios and mutation gate before the other suites. Use `scripts/verify-release.ps1` with the game/Harmony paths to build both targets, run all gates, then package only on success. `package.ps1` is a low-level archive tool, not a verification command. Report named behavior results and live-test status rather than combining scenario counts with geometry assertions.
+
+Bipod regressions cover G during setup/fire/reload, one-shot consumption, pause/stale/re-entry clearing, unsupported weapons, foreign jobs and movement cancelling a queued click. The `bipod-toggle-ignored` mutation must compile and fail `bipod-toggle-cancels-setup`. The weapon adapter remains simulated here; `WeaponControlTests` separately links the real bipod and source adapters.

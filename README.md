@@ -1,6 +1,6 @@
 # RimFront 0.6.3 test build
 
-The current source includes a manual-reload fix for deferred native attack orders, 35 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
+The current source includes a manual-reload fix for deferred native attack orders, 40 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 
@@ -19,6 +19,7 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 | Left mouse | Attack at the crosshair |
 | R | Request a supported native CE reload |
 | F | Cycle the equipped CE weapon's supported fire modes |
+| G | Toggle automatic setup of the equipped CE bipod during possession |
 | Space | Pause/resume |
 | Escape | Return to colony view |
 
@@ -43,7 +44,9 @@ Version 0.6.2 restores held Auto/Fixed fire after fresh input returns from a slo
 
 For firing problems, enable **Options → Mod settings → RimFront → Diagnostics → Trace firing input and actions**, reproduce the issue, then disable it. The option applies immediately and is off by default. Entries prefixed `[RimFront:Fire]` in `Player.log` connect physical mouse transitions to trigger gates, attack orders, observed shots, reloads, native job changes and interruptions, with weapon/mode/ammunition context. Repeated failures are deduplicated and output is rate limited. On Windows, the log is under `%USERPROFILE%\AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios\Logs\Player.log` on the inspected 1.7 installation (older versions may put it directly in the parent folder). Copy the log after reproducing, before restarting the game.
 
-Successful completed attacks preserve CE repeat-shot timing state. Interruptions reset the owned verb. Verified automatic setup for the equipped CE bipod weapon keeps first-person control while its stationary job completes; unrelated or forced jobs retain their normal ownership rules. These behaviors need live sustained-fire and reload checks, especially with the M60.
+Successful completed attacks preserve CE repeat-shot timing state. Interruptions reset the owned verb. Verified automatic setup for the equipped CE bipod weapon keeps first-person control while its stationary job completes. Press **G** to disable automatic setup and close the bipod through CE, including cancelling a setup already in progress; press it again to allow CE setup under its normal aim-mode/global settings. The HUD shows the current preference. It resets to ON when taking control and does not change CE global settings. Unrelated or forced jobs retain their normal ownership rules. These behaviors need live sustained-fire and reload checks, especially with the M60.
+
+Owned manual CE shots sample the displayed muzzle for each native cast, including the M60 heavy-weapon model. Source coordinates, height, range estimation and shot rotation use that same sample. A short rendered-geometry query clips the source before intervening cover; near targets or an incomplete query use the camera position. CE still supplies spread, recoil, pellet/barrel offsets, gravity, ammo and damage. Vanilla projectiles retain their existing adapter.
 
 Version 0.6.1 prevents a verified CE reload from suspending and replaying RimFront's old firing job. Reloads still run natively; subsequent fire uses current input and a fresh aim point. Automatic reload after the last round does not create a second Semi-auto or Burst trigger press. Foreign attack orders keep their usual ownership rules.
 

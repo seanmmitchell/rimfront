@@ -168,7 +168,8 @@ namespace RimFront
                 strafe = paused ? 0 : (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f),
                 fire = !paused && !waitForInitialMouseUp && Input.GetMouseButton(0),
                 reload = !paused && Input.GetKeyDown(KeyCode.R),
-                cycleFireMode = !paused && Input.GetKeyDown(KeyCode.F)
+                cycleFireMode = !paused && Input.GetKeyDown(KeyCode.F),
+                toggleBipod = !paused && Input.GetKeyDown(KeyCode.G)
             };
         }
 
@@ -242,10 +243,11 @@ namespace RimFront
                 GUI.color = new Color(0.85f, 0.91f, 0.79f);
                 Widgets.Label(new Rect(28, 19, 510, 24), "RIMFRONT  /  " + nameText + "  /  " + healthText + "  /  " + Mathf.RoundToInt(1f / Math.Max(0.001f, frameSeconds)) + " FPS");
                 GUI.color = Color.white;
-                Widgets.Label(new Rect(28, 42, 600, 24), "WASD move · Mouse aim · LMB fire · R reload · F mode · Space pause · Esc exit");
+                Widgets.Label(new Rect(28, 42, 600, 24), "WASD · Mouse aim · LMB fire · R reload · F mode · G bipod · Space pause · Esc exit");
                 Widgets.DrawBoxSolid(new Rect(width - 340, 16, 324, 31), new Color(0.055f, 0.07f, 0.06f, 0.88f));
                 Widgets.Label(new Rect(width - 328, 18, 304, 26), (AnalogMovement.Active ? "Analog" : "Native path") + " / " + NativeScene.DrawCalls + " draws / " + NativeScene.CachedChunks + " chunks");
-                Widgets.DrawBoxSolid(new Rect(16, height - 86, 620, 70), new Color(0.055f, 0.07f, 0.06f, 0.88f));
+                Widgets.DrawBoxSolid(new Rect(16, height - 114, 620, 98), new Color(0.055f, 0.07f, 0.06f, 0.88f));
+                Widgets.Label(new Rect(28, height - 110, 600, 26), NativeBipods.Describe(pawn));
                 string ammo = weapon != null && weapon.ammo >= 0 ? "  " + weapon.ammo + " / " + weapon.capacity : "";
                 Widgets.Label(new Rect(28, height - 82, 600, 26), (weapon?.label ?? "Unarmed") + ammo + "  /  " + (weapon?.fireMode ?? "Fixed") + "  —  " + (weapon?.status ?? ""));
                 Widgets.Label(new Rect(28, height - 54, 600, 26), Find.TickManager.Paused ? "PAUSED — press Space to resume" : (status ?? ""));

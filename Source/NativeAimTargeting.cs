@@ -176,6 +176,13 @@ namespace RimFront
 
         internal static bool TrySelect(Pawn shooter, float yaw, float pitch, float maxRange, out TargetInfo result)
         {
+            Vector3 eye = shooter == null ? Vector3.zero : shooter.DrawPos; eye.y = NativeView.EyeHeight;
+            if (NativeView.Active && NativeView.ControlledPawn == shooter) eye = NativeView.RenderPosition;
+            return TrySelectFrom(shooter, eye, yaw, pitch, maxRange, true, out result);
+        }
+        internal static bool TrySelectFrom(Pawn shooter, Vector3 eye, float yaw, float pitch, float maxRange,
+            bool constrainCellRange, out TargetInfo result)
+        {
             result = default(TargetInfo);
             if (shooter == null || !shooter.Spawned || !Ray(yaw, pitch, maxRange, out Vector3 direction, out float limit)) return false;
             try
@@ -183,8 +190,6 @@ namespace RimFront
                 Map map = shooter.Map;
                 if (!ReferenceEquals(cachedMap, map)) { Dispose(); cachedMap = map; }
                 query++; visited.Clear(); seen.Clear();
-                Vector3 eye = shooter.DrawPos; eye.y = NativeView.EyeHeight;
-                if (NativeView.Active && NativeView.ControlledPawn == shooter) eye = NativeView.RenderPosition;
                 if (!Finite(eye)) return false;
                 IntVec3 first = eye.ToIntVec3();
                 if (!first.InBounds(map) || first.Fogged(map)) return false;
@@ -271,7 +276,7 @@ namespace RimFront
                 if (!targetCell.InBounds(map) || targetCell.Fogged(map)) return false;
                 // Cell-based native verbs measure range to cell centres. Bring an empty
                 // endpoint inward if rounding alone would put its cell out of range.
-                if (selected == null)
+                if (selected == null && constrainCellRange)
                 {
                     for (int adjust = 0; adjust < 16 && !CellWithinRange(shooter.Position.x, shooter.Position.z, targetCell.x, targetCell.z, maxRange); adjust++)
                     {

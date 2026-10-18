@@ -163,7 +163,7 @@ internal static class Program
     {
         Type weapons = assembly.GetType("RimFront.NativeWeapons", true), kind = weapons.GetNestedType("WeaponKind", Flags);
         MethodInfo classify = weapons.GetMethod("ClassifyName", Flags), geometry = weapons.GetMethod("BuildGeometry", Flags);
-        foreach (var sample in new[] { ("AutoPistol", "Pistol"), ("Revolver", "Revolver"), ("AssaultRifle", "Rifle"), ("PumpShotgun", "Shotgun"), ("SubmachineGun", "Smg"), ("SniperRifle", "Sniper"), ("MachineGun", "Heavy"), ("GrenadeLauncher", "Launcher"), ("LongBow", "Bow"), ("FragGrenade", "Grenade") })
+        foreach (var sample in new[] { ("AutoPistol", "Pistol"), ("Revolver", "Revolver"), ("AssaultRifle", "Rifle"), ("PumpShotgun", "Shotgun"), ("SubmachineGun", "Smg"), ("SniperRifle", "Sniper"), ("MachineGun", "Heavy"), ("Gun_M60", "Heavy"), ("CE_Gun_M60E6", "Heavy"), ("Gun_LMG", "Heavy"), ("GrenadeLauncher", "Launcher"), ("LongBow", "Bow"), ("FragGrenade", "Grenade") })
             Check(classify.Invoke(null, new object[] { sample.Item1, true }).ToString() == sample.Item2, "weapon classification: " + sample.Item1);
         Check(classify.Invoke(null, new object[] { "SteelKnife", false }).ToString() == "Blade", "melee blade classification");
         Check(classify.Invoke(null, new object[] { "Club", false }).ToString() == "Blunt", "melee blunt classification");

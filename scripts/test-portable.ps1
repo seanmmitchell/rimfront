@@ -5,7 +5,7 @@ $projectRoot = Split-Path $PSScriptRoot -Parent
 # This hosted gate never requires or distributes an installed game's assemblies.
 & (Join-Path $PSScriptRoot 'build.ps1') -Dotnet $Dotnet -Version '1.6'
 & (Join-Path $PSScriptRoot 'test-firing-loop.ps1') -Dotnet $Dotnet -VerifyMutations
-foreach ($suite in @('JobPolicyTests', 'WindowIconTests', 'MovementTests', 'InputTests')) {
+foreach ($suite in @('JobPolicyTests', 'WindowIconTests', 'MovementTests', 'InputTests', 'WeaponControlTests')) {
     $project = Join-Path $projectRoot "tests/$suite/$suite.csproj"
     & $Dotnet run --project $project --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
     if ($LASTEXITCODE -ne 0) { throw "$suite failed ($LASTEXITCODE)." }

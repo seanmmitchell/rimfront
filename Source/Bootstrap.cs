@@ -14,6 +14,7 @@ namespace RimFront
             Settings = GetSettings<RimFrontSettings>();
             new Harmony("rimfront.nativefps").PatchAll(typeof(RimFrontMod).Assembly);
             NativeManualAim.Initialize();
+            NativeBipods.Initialize();
             Log.Message("[RimFront] Native 3D renderer loaded; Harmony hooks installed. Version "
                 + typeof(RimFrontMod).Assembly.GetName().Version.ToString(3) + ".");
         }

@@ -15,7 +15,7 @@ namespace RimFront
         bool oldFireAtWill;
         InputCommand input;
         bool pendingReload, pendingFire;
-        bool pendingFireMode, requireFireRelease, attackRequiresTriggerPress;
+        bool pendingBipod, pendingFireMode, requireFireRelease, attackRequiresTriggerPress;
         bool suppressNextFireEdge, reportedStaleFire;
         readonly NativeFiringTrace firingTrace = new NativeFiringTrace();
         int attackIdleTicks;
@@ -51,7 +51,7 @@ namespace RimFront
             controlledMap = candidate.Map;
             oldFireAtWill = candidate.drafter.FireAtWill;
             input = null;
-            pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
+            pendingReload = pendingFire = pendingBipod = pendingFireMode = requireFireRelease = false;
             suppressNextFireEdge = reportedStaleFire = false;
             firingTrace.Reset();
             Active = this;
@@ -63,9 +63,10 @@ namespace RimFront
                 string fallback = null;
                 bool analog = (RimFrontMod.Settings?.analogMovement ?? true) && AnalogMovement.Start(candidate, out fallback);
                 movementMode = analog ? "Analog" : "Native path";
+                NativeBipods.Start(candidate);
                 NativeView.Start(candidate);
                 firingTrace.Event(pawn, "control-start", movementMode);
-                message = fallback ?? (movementMode + " movement - WASD move, mouse look, LMB fire, R reload, F fire mode, Escape return.");
+                message = fallback ?? (movementMode + " movement - WASD move, mouse look, LMB fire, R reload, F fire mode, G auto bipod, Escape return.");
                 if (fallback != null) Log.Warning("[RimFront] " + fallback);
                 Log.Message("[RimFront] Native 3D control started on RimWorld " + VersionControl.CurrentVersionString + "; " + CombatAdapter.Mode + "; " + movementMode + " movement.");
             }
@@ -92,11 +93,12 @@ namespace RimFront
             }
             finally
             {
+                NativeBipods.Stop();
                 pawn = null;
                 controlledMap = null;
                 ownedJob = null;
                 input = null;
-                pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
+                pendingReload = pendingFire = pendingBipod = pendingFireMode = requireFireRelease = false;
                 suppressNextFireEdge = reportedStaleFire = false;
                 firingTrace.Reset();
                 message = reason;
@@ -221,15 +223,16 @@ namespace RimFront
                 // Paused clicks must not become surprise actions after unpausing.
                 if (Find.TickManager.Paused)
                 {
-                    command.fire = command.reload = command.cycleFireMode = false;
+                    command.fire = command.reload = command.cycleFireMode = command.toggleBipod = false;
                     command.forward = command.strafe = 0;
-                    pendingFire = pendingReload = pendingFireMode = false;
+                    pendingFire = pendingReload = pendingBipod = pendingFireMode = false;
                     AnalogMovement.Halt();
                 }
                 else
                 {
                     pendingReload |= command.reload;
                     pendingFireMode |= command.cycleFireMode;
+                    pendingBipod |= command.toggleBipod;
                     pendingFire |= firePressed;
                 }
                 firingTrace.Input(pawn, physicalFire, rawFire, command.fire, pendingFire, requireFireRelease,
@@ -275,7 +278,7 @@ namespace RimFront
                     AnalogMovement.Halt();
                     if (ownedJob?.def == JobDefOf.Goto || ownedJob?.def == JobDefOf.AttackStatic) StopOwnedJob("stale input");
                     input = null;
-                    pendingReload = pendingFire = pendingFireMode = false;
+                    pendingReload = pendingFire = pendingBipod = pendingFireMode = false;
                     // Clear stale actions, but do not latch off an automatic trigger.
                     // The first new sample restores held state without inventing a click.
                     suppressNextFireEdge = true;
@@ -285,6 +288,14 @@ namespace RimFront
                 {
                     firingTrace.ReportUnexpectedJob(pawn, ownedJob, pendingReload);
                     Release("Control released for native job: " + pawn.CurJob.def.defName + ".");
+                    return;
+                }
+                if (pendingBipod)
+                {
+                    pendingBipod = false;
+                    NativeBipods.TryToggle(pawn, out message);
+                    if (Math.Abs(input.forward) + Math.Abs(input.strafe) >= .1f || pendingReload) pendingFire = false;
+                    firingTrace.Event(pawn, "bipod-toggle-result", message);
                     return;
                 }
                 if (CombatAdapter.IsSettingUpBipod(pawn))

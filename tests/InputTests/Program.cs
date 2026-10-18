@@ -45,7 +45,7 @@ class Program
             }
             Check(new InputCommand { action = "input", yaw = 100000 }.IsValid(), "large accumulated yaw boundary accepted");
             Check(!new InputCommand { action = "input", yaw = -100001 }.IsValid(), "unbounded accumulated yaw rejected");
-            Check(new InputCommand { action = "input", fire = true, reload = true, cycleFireMode = true }.IsValid(), "native button combinations remain valid for tick policy arbitration");
+            Check(new InputCommand { action = "input", fire = true, reload = true, cycleFireMode = true, toggleBipod = true }.IsValid(), "native button combinations remain valid for tick policy arbitration");
             Console.WriteLine("PASS: " + checks + " native input/aim geometry checks");
             return 0;
         }

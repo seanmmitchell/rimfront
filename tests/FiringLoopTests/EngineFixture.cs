@@ -20,6 +20,8 @@ public sealed class FiringWorld : IDisposable
     public string Mode = "Auto";
     public int WarmupTicks = 3, BurstRounds = 3, BurstIntervalTicks = 2, CooldownTicks = 3, ReloadTicks = 5;
     public bool InvalidAim, StallAttack;
+    public bool HasBipod = true, AutoBipod = true;
+    public int BipodToggles;
     public bool DeferNextOrderedJob, HoldQueuedJobs;
     public bool RecycleNextOrderedJob, QueueRecycledJob;
     public Job RecycledJob;
@@ -47,12 +49,12 @@ public sealed class FiringWorld : IDisposable
     }
 
     public void Frame(bool held = false, bool reload = false, bool cycleMode = false, bool paused = false,
-        float forward = 0, float strafe = 0, bool release = false)
+        float forward = 0, float strafe = 0, bool release = false, bool bipod = false)
     {
         Paused = paused; forcedAge = null;
         NativeView.FireHeld = held;
         NativeView.Command = new InputCommand { action = release ? "release" : "input", fire = held && !paused,
-            reload = reload, cycleFireMode = cycleMode, forward = forward, strafe = strafe };
+            reload = reload, cycleFireMode = cycleMode, toggleBipod = bipod, forward = forward, strafe = strafe };
         Game.GameComponentUpdate();
         AssertNoErrors();
     }
@@ -373,6 +375,20 @@ namespace RimFront
             message = "simulated attack";
             if (p.World.InvalidAim || p.World.Ammo <= 0) return null;
             return new Job { def = JobDefOf.AttackStatic, verbToUse = p.Verb, playerForced = true };
+        }
+    }
+    internal static class NativeBipods
+    {
+        internal static void Start(Pawn p) { p.World.AutoBipod = true; }
+        internal static void Stop() { }
+        internal static bool TryToggle(Pawn p, out string message)
+        {
+            message = "simulated bipod";
+            if (!p.World.HasBipod) return false;
+            p.World.AutoBipod = !p.World.AutoBipod; p.World.BipodToggles++;
+            if (!p.World.AutoBipod && CombatAdapter.IsSettingUpBipod(p))
+            { p.World.SetupRemaining = 0; p.jobs.EndCurrentJob(JobCondition.InterruptForced, startNewJob: false); }
+            return true;
         }
     }
     internal static class NativeFireModes

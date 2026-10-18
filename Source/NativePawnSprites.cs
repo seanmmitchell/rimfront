@@ -16,13 +16,17 @@ namespace RimFront
             new[] { typeof(PawnTextureAtlasFrameSet), typeof(Rot4), typeof(PawnDrawMode) });
         static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
         internal const int MaximumRefreshesPerFrame = 2;
+        internal const int MaximumWeaponRefreshesPerFrame = 2;
         static int refreshFrame = -1, refreshes;
-        static bool warned;
+        static int weaponRefreshFrame = -1, weaponRefreshes;
+        static bool warned, weaponWarned;
         sealed class Entry
         {
             internal Material Material;
             internal int LastFrame;
             internal Func<PawnTextureAtlasFrameSet, Rot4, PawnDrawMode, Mesh> Frame;
+            internal NativePawnModels.Appearance WeaponAppearance;
+            internal float WeaponAppearanceAt;
         }
 
         internal static bool TryDraw(Pawn pawn, Vector3 position, bool corpse)
@@ -59,9 +63,47 @@ namespace RimFront
                 position.y = centerHeight;
                 Matrix4x4 root = CardRoot(bounds, position, height, viewerYaw, lying);
                 NativeLighting.Draw(mesh, root, entry.Material, position);
+                if (DrawWeaponEnabled(RimFrontMod.Settings?.spriteWeapons ?? true, corpse, lying))
+                {
+                    Vector3 feet = position; feet.y = .04f;
+                    DrawWeapon(pawn, feet, animation, entry);
+                }
                 return true;
             }
             catch (Exception error) { return Unavailable(error.GetBaseException().Message); }
+        }
+
+        internal static bool DrawWeaponEnabled(bool enabled, bool corpse, bool lying) => enabled && !corpse && !lying;
+
+        internal static bool AllowWeaponRefresh(int frame)
+        {
+            if (weaponRefreshFrame != frame) { weaponRefreshFrame = frame; weaponRefreshes = 0; }
+            if (weaponRefreshes >= MaximumWeaponRefreshesPerFrame) return false;
+            weaponRefreshes++;
+            return true;
+        }
+
+        static void DrawWeapon(Pawn pawn, Vector3 feet, NativePawnAnimation.Snapshot animation, Entry entry)
+        {
+            if (pawn.equipment?.Primary == null || pawn.Dead || pawn.Downed || !pawn.RaceProps.Humanlike) return;
+            try
+            {
+                // Keep value-only hand/appearance metadata; never build a 3D body
+                // mesh just to attach a weapon to a sprite. Share the existing
+                // held/stowed poses, reload parts, scale and missing-hand rules.
+                if (Time.realtimeSinceStartup >= entry.WeaponAppearanceAt && AllowWeaponRefresh(Time.frameCount))
+                {
+                    entry.WeaponAppearanceAt = Time.realtimeSinceStartup + .5f;
+                    entry.WeaponAppearance = NativePawnModels.Capture(pawn);
+                }
+                if (entry.WeaponAppearance != null)
+                    NativeWeapons.DrawHeld(pawn, feet, animation.FacingYaw, entry.WeaponAppearance, animation, false);
+            }
+            catch (Exception error)
+            {
+                entry.WeaponAppearanceAt = Time.realtimeSinceStartup + 2f;
+                if (!weaponWarned) { weaponWarned = true; Log.Warning("[RimFront] Sprite weapon skipped: " + error.GetBaseException().Message); }
+            }
         }
 
         internal static bool AllowRefresh(bool dirty, int frame)
@@ -111,7 +153,7 @@ namespace RimFront
         internal static void Dispose()
         {
             foreach (Entry entry in entries.Values) UnityEngine.Object.Destroy(entry.Material);
-            entries.Clear(); warned = false; refreshFrame = -1; refreshes = 0;
+            entries.Clear(); warned = weaponWarned = false; refreshFrame = weaponRefreshFrame = -1; refreshes = weaponRefreshes = 0;
         }
     }
 }

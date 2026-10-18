@@ -43,7 +43,7 @@ public sealed class FiringWorld : IDisposable
     {
         RimFrontGame.Active?.Release("Fixture replaced.");
         CombatExtended.Controller.settings.Enabled = true;
-        RimFrontMod.Settings.movingFire = true; RimFrontMod.Settings.analogMovement = true;
+        RimFrontMod.Settings.movingFire = RimFrontMod.Settings.movingReload = true; RimFrontMod.Settings.analogMovement = true;
         Log.Errors.Clear(); Log.Entries.Clear();
         Find.TickManager = new TickManager(); Find.CurrentMap = new Map();
         Pawn = new Pawn(this) { Map = Find.CurrentMap };
@@ -227,7 +227,8 @@ namespace Verse
         public ThingDef def = new ThingDef();
         public List<ThingComp> AllComps = new List<ThingComp>();
     }
-    public class Equipment { public ThingWithComps Primary = new ThingWithComps(); }
+    public class Equippable { public Verb PrimaryVerb; }
+    public class Equipment { public ThingWithComps Primary = new ThingWithComps(); public Equippable PrimaryEq = new Equippable(); }
     public static class DefDatabase<T> where T : class
     {
         public static T GetNamedSilentFail(string name) => new Verse.AI.JobDef(name)
@@ -241,7 +242,7 @@ namespace Verse
         public Faction Faction = Faction.OfPlayer; public bool Spawned = true, Drafted = true, Dead, Downed, InMentalState;
         public readonly Equipment equipment = new Equipment();
         public Map Map; public IntVec3 Position; public Job CurJob => jobs.curJob;
-        public Pawn(FiringWorld world) { World = world; Verb = new Verb(world); jobs = new Pawn_JobTracker(this); }
+        public Pawn(FiringWorld world) { World = world; Verb = new Verb(world); equipment.PrimaryEq.PrimaryVerb = Verb; jobs = new Pawn_JobTracker(this); }
     }
     public class Verb
     {
@@ -445,7 +446,7 @@ namespace RimFront
         internal static void Tick(float yaw, float forward, float strafe) { IsMoving = Math.Abs(forward) + Math.Abs(strafe) >= .1f; }
     }
     internal static class AnalogCombatCompatibility { internal static bool Supported => true; }
-    internal sealed class FixtureSettings { public bool analogMovement = true, movingFire = true; }
+    internal sealed class FixtureSettings { public bool analogMovement = true, movingFire = true, movingReload = true; }
     internal static class RimFrontMod { internal static readonly FixtureSettings Settings = new FixtureSettings(); }
     internal sealed class NativeFiringTrace
     {

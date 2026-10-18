@@ -6,6 +6,16 @@ internal static partial class Program
     static void TestTargetIndicators(Assembly assembly)
     {
         Type type = assembly.GetType("RimFront.NativeTargetIndicators", true);
+        MethodInfo range = type.GetMethod("WithinTagRange", Flags);
+        bool InRange(float squared, float distance) => (bool)range.Invoke(null, new object[] { squared, distance });
+        foreach (float view in new[] { 60f, 90f, 120f })
+        {
+            float half = view * .5f;
+            Check(InRange(0, view) && InRange(half * half, view), "overhead tags include the half-view-distance boundary");
+            Check(!InRange((half + .01f) * (half + .01f), view), "overhead tags beyond half view distance are hidden");
+        }
+        Check(!InRange(-1, 60) && !InRange(float.NaN, 60) && !InRange(float.PositiveInfinity, 60), "invalid tag distance fails closed");
+        Check(!InRange(1, 0) && !InRange(1, float.NaN) && !InRange(1, float.PositiveInfinity), "invalid view distance cannot show tags");
         MethodInfo classify = type.GetMethod("Classify", Flags), tint = type.GetMethod("Tint", Flags);
         MethodInfo distinctAlly = type.GetMethod("IsDistinctAlly", Flags).MakeGenericMethod(typeof(object));
         object playerFaction = new object(), visitorFaction = new object();

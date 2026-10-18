@@ -39,6 +39,11 @@ namespace RimFront
             && ownedJob.verbToUse != null && !ownedJob.verbToUse.IsMeleeAttack;
         bool FreshMovementInput => input != null && !Find.TickManager.Paused
             && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds);
+        bool CanMoveAndReload => FreshMovementInput && (RimFrontMod.Settings?.movingReload ?? true)
+            && pawn?.stances?.stunner?.Stunned != true && CombatAdapter.IsEquippedReload(pawn, pawn?.CurJob)
+            && (!(pawn.stances.curStance is Stance_Busy busy)
+                || (busy is Stance_Cooldown && busy.verb == pawn.equipment?.PrimaryEq?.PrimaryVerb));
+        internal bool AllowsReloadMovement(Stance_Busy stance) => CanMoveAndReload && pawn.stances.curStance == stance;
         internal bool AllowsAttackMovement(Stance_Busy stance) => FreshMovementInput && CanMoveAndFire
             && OwnsRangedAttack && pawn.stances.curStance == stance && stance.verb == ownedJob.verbToUse;
         internal float MovementSpeedFactor => (input?.crouch == true ? .5f : 1f)
@@ -100,6 +105,7 @@ namespace RimFront
                 {
                     try { NativeWeaponBrace.Clear(); StopOwnedJob("control release"); }
                     catch (Exception e) { Log.Warning("[RimFront] Native job cleanup: " + e.Message); }
+                    if (CombatAdapter.IsEquippedReload(pawn, pawn.CurJob)) pawn.pather?.StopDead();
                     if (pawn.drafter != null) pawn.drafter.FireAtWill = oldFireAtWill;
                 }
             }
@@ -292,6 +298,7 @@ namespace RimFront
                     if (NativeFiringTrace.Enabled)
                         firingTrace.Event(pawn, "stale-input", "ageMs=" + inputAge.ToString("0") + " held=" + input.fire);
                     AnalogMovement.Halt();
+                    if (CombatAdapter.IsEquippedReload(pawn, pawn.CurJob)) pawn.pather?.StopDead();
                     NativeWeaponBrace.Clear();
                     if (ownedJob?.def == JobDefOf.Goto || ownedJob?.def == JobDefOf.AttackStatic) StopOwnedJob("stale input");
                     input = null;
@@ -401,7 +408,8 @@ namespace RimFront
                 }
                 if (CombatAdapter.IsReloading(pawn) || pawn.stances.curStance is Stance_Busy)
                 {
-                    if (!CombatAdapter.IsReloading(pawn) && CanMoveAndFire && OwnsRangedAttack)
+                    if (CanMoveAndReload) Move(preserveJob: true);
+                    else if (!CombatAdapter.IsReloading(pawn) && CanMoveAndFire && OwnsRangedAttack)
                     { Move(firing: true); NativeManualAim.Update(pawn, input.yaw, input.pitch); }
                     else { AnalogMovement.Halt(); pawn.pather?.StopDead(); }
                     if (CombatAdapter.IsReloading(pawn)) message = "Reloading.";
@@ -434,8 +442,9 @@ namespace RimFront
             }
         }
 
-        void Move(bool firing = false)
+        void Move(bool firing = false, bool preserveJob = false)
         {
+            preserveJob |= firing;
             float forward = input.forward, strafe = input.strafe;
             if (AnalogMovement.Active)
             {
@@ -447,7 +456,7 @@ namespace RimFront
             }
             if (Math.Abs(forward) + Math.Abs(strafe) < 0.1)
             {
-                if (firing) pawn.pather?.StopDead();
+                if (preserveJob) pawn.pather?.StopDead();
                 else if (ownedJob?.def == JobDefOf.Goto) StopOwnedJob();
                 return;
             }
@@ -459,7 +468,7 @@ namespace RimFront
             IntVec3 destination = pawn.Position + new IntVec3(stepX, 0, stepZ);
             if (!NativePassable(destination))
             {
-                if (firing) pawn.pather?.StopDead();
+                if (preserveJob) pawn.pather?.StopDead();
                 else if (ownedJob?.def == JobDefOf.Goto) StopOwnedJob();
                 return;
             }
@@ -470,8 +479,8 @@ namespace RimFront
                 if (!NativePassable(next)) break;
                 destination = next;
             }
-            // AttackStatic keeps ownership of the verb while the native pather walks.
-            if (firing)
+            // Keep the native attack/reload job while its pather follows WASD.
+            if (preserveJob)
             {
                 if (!pawn.pather.Moving || pawn.pather.Destination.Cell != destination)
                     pawn.pather.StartPath(destination, PathEndMode.OnCell);

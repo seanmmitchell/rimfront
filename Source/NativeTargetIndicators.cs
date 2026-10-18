@@ -18,6 +18,9 @@ namespace RimFront
         static Pawn observer;
         static Map map;
         static int nextScan, cursor, lastScanFrame = -1;
+        internal static bool WithinTagRange(float squaredDistance, float viewDistance)
+            => squaredDistance >= 0 && viewDistance > 0 && !float.IsInfinity(viewDistance)
+                && squaredDistance <= viewDistance * viewDistance * .25f;
         static bool warned, scanning;
         static int CompareDistance(Pawn left, Pawn right) =>
             (left.DrawPos - observer.DrawPos).sqrMagnitude.CompareTo((right.DrawPos - observer.DrawPos).sqrMagnitude);
@@ -69,7 +72,7 @@ namespace RimFront
             {
                 Pawn pawn = nearby[i];
                 if (pawn == null || !pawn.Spawned || pawn.Dead || pawn.Map != map || pawn.Position.Fogged(map)
-                    || (pawn.DrawPos - observer.DrawPos).sqrMagnitude > NativeScene.ViewDistanceSquared)
+                    || !WithinTagRange((pawn.DrawPos - observer.DrawPos).sqrMagnitude, NativeScene.ViewDistance))
                 { retained.Remove(pawn); nearby.RemoveAt(i); }
             }
             nearby.Sort(byDistance);
@@ -79,7 +82,7 @@ namespace RimFront
             {
                 Pawn candidate = pawns[cursor++];
                 if (candidate == observer || candidate.Dead || !candidate.Spawned || candidate.Position.Fogged(map)
-                    || retained.Contains(candidate) || (candidate.DrawPos - observer.DrawPos).sqrMagnitude > NativeScene.ViewDistanceSquared) continue;
+                    || retained.Contains(candidate) || !WithinTagRange((candidate.DrawPos - observer.DrawPos).sqrMagnitude, NativeScene.ViewDistance)) continue;
                 int index = nearby.BinarySearch(candidate, distanceComparer);
                 if (index < 0) index = ~index;
                 if (index >= MaximumScanned) continue;
@@ -106,7 +109,7 @@ namespace RimFront
                 foreach (Pawn pawn in nearby)
                 {
                     if (!pawn.Spawned || pawn.Dead || pawn.Map != map || pawn.Position.Fogged(map)
-                        || (pawn.DrawPos - controlled.DrawPos).sqrMagnitude > NativeScene.ViewDistanceSquared) continue;
+                        || !WithinTagRange((pawn.DrawPos - controlled.DrawPos).sqrMagnitude, NativeScene.ViewDistance)) continue;
                     Vector3 point = NativePawns.TargetPosition(pawn); point.y = NativePawns.TargetHeight(pawn) + .18f;
                     Vector3 screen = Find.Camera.WorldToScreenPoint(point);
                     if (!NativeEffectMath.IsFinite(screen) || screen.z <= 0) continue;

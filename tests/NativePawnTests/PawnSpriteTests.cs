@@ -45,6 +45,16 @@ internal static partial class Program
         Check(Allow(true, 101) && Allow(true, 101) && !Allow(true, 101), "atlas refresh budget resets on the next render frame");
         Type settings = assembly.GetType("RimFront.RimFrontSettings", true);
         Check(!(bool)settings.GetField("spritePawns").GetValue(Activator.CreateInstance(settings)), "existing installs retain default 3D characters");
+        Check((bool)settings.GetField("spriteWeapons").GetValue(Activator.CreateInstance(settings)), "3D weapons default on when sprite characters are selected");
+        Check((bool)settings.GetField("movingReload").GetValue(Activator.CreateInstance(settings)), "moving reload defaults on for existing and new installs");
+        MethodInfo weaponGate = sprites.GetMethod("DrawWeaponEnabled", Flags);
+        foreach (bool enabled in new[] { false, true }) foreach (bool corpse in new[] { false, true }) foreach (bool lying in new[] { false, true })
+            Check((bool)weaponGate.Invoke(null, new object[] { enabled, corpse, lying }) == (enabled && !corpse && !lying),
+                "sprite weapon option never draws a held weapon on a corpse or lying character");
+        MethodInfo weaponRefresh = sprites.GetMethod("AllowWeaponRefresh", Flags);
+        bool Refresh(int frame) => (bool)weaponRefresh.Invoke(null, new object[] { frame });
+        Check(Refresh(100) && Refresh(100) && !Refresh(100), "sprite weapon appearance refreshes stay bounded to two per frame");
+        Check(Refresh(101) && Refresh(101) && !Refresh(101), "sprite weapon appearance budget resumes on the next frame");
         MethodInfo update = (MethodInfo)sprites.GetField("UpdateFrame", Flags).GetValue(null);
         Check(update != null, "native directional atlas refresh API resolves on installed game");
         // Bind without invoking a renderer/GPU. This catches incompatible private API signatures.

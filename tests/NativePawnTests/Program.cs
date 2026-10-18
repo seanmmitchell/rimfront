@@ -13,6 +13,7 @@ internal static partial class Program
     static Type models,appearance,builder,vector,color,form,shape,part;
     static int checks;
     static readonly List<object> catalog=new List<object>();
+    static readonly List<object> weaponCatalog=new List<object>();
     static readonly List<object> objectCatalog=new List<object>();
     static readonly List<object> actionCatalog=new List<object>();
     static int Main(string[] args)
@@ -34,10 +35,12 @@ internal static partial class Program
             builder=assembly.GetType("RimFront.NativeScene+Builder",true);
             Type rig=assembly.GetType("RimFront.NativePawnRig",true);
             form=rig.GetNestedType("Form",Flags);shape=rig.GetNestedType("BodyShape",Flags);part=rig.GetNestedType("Part",Flags);
+            TestMachineGuns(assembly);
             TestModels();
             TestAppearance();
             TestAnimation(assembly);
             TestObjects(assembly);
+            TestCoverAndResourceModels(assembly);
             TestOutfitsAndPoses(assembly,unity);
             TestEquipmentAttachments(assembly,unity);
             TestShieldEffects(assembly);
@@ -63,7 +66,8 @@ internal static partial class Program
             TestShotCadence(assembly);
             TestReloadContinuation(assembly);
             TestVegetation(assembly);
-            if(args.Length==4){File.WriteAllText(args[3],JsonSerializer.Serialize(catalog));File.WriteAllText(Path.ChangeExtension(args[3],"objects.json"),JsonSerializer.Serialize(objectCatalog));File.WriteAllText(Path.ChangeExtension(args[3],"actions.json"),JsonSerializer.Serialize(actionCatalog));}
+            TestPawnSprites(assembly);
+            if(args.Length==4){File.WriteAllText(args[3],JsonSerializer.Serialize(catalog));File.WriteAllText(Path.ChangeExtension(args[3],"weapons.json"),JsonSerializer.Serialize(weaponCatalog));File.WriteAllText(Path.ChangeExtension(args[3],"objects.json"),JsonSerializer.Serialize(objectCatalog));File.WriteAllText(Path.ChangeExtension(args[3],"actions.json"),JsonSerializer.Serialize(actionCatalog));}
             Console.WriteLine($"PASS: {checks} native pawn/object model, appearance and animation checks against compiled helpers. No GPU or game session was started.");
             return 0;
         }
@@ -245,8 +249,6 @@ internal static partial class Program
                 build.Invoke(null,new[]{mesh,Enum.Parse(kind,resource),(object)1f,1f,1f,Tint(.5f,.5f,.5f),count});
                 int vertices=Vectors(mesh,"Vertices").Count,stamp=(int)signature.Invoke(null,new object[]{count});
                 if(count>1)Check(vertices==previousVertices||stamp!=previousSignature,"resource geometry changes invalidate cached mesh: "+resource+" count "+count);
-                if(count==24||count==25||count==49||count==50||count==74||count==75)
-                    Check(vertices==24*Math.Min(4,1+count/25),"resource threshold geometry matches quantity: "+resource+" count "+count);
                 previousVertices=vertices;previousSignature=stamp;
             }
         }
@@ -454,11 +456,11 @@ internal static partial class Program
         foreach(object c in (IEnumerable)Get(source,"Colors"))colors.Add(c);
         foreach(int i in (IEnumerable)Get(source,"Triangles"))indices.Add(start+i);
     }
-    static void AddCatalog(string name,object mesh,bool worldObject=false,bool action=false)
+    static void AddCatalog(string name,object mesh,bool worldObject=false,bool action=false,bool weapon=false)
     {
         var colors=new List<float[]>();
         foreach(object value in (IEnumerable)Get(mesh,"Colors"))colors.Add(new[]{(float)Get(value,"r"),(float)Get(value,"g"),(float)Get(value,"b")});
-        (action?actionCatalog:worldObject?objectCatalog:catalog).Add(new{Name=name,Vertices=Vectors(mesh,"Vertices"),Triangles=(List<int>)Get(mesh,"Triangles"),Colors=colors});
+        (weapon?weaponCatalog:action?actionCatalog:worldObject?objectCatalog:catalog).Add(new{Name=name,Vertices=Vectors(mesh,"Vertices"),Triangles=(List<int>)Get(mesh,"Triangles"),Colors=colors});
     }
     static List<float[]> Vectors(object owner,string field)
     {

@@ -30,6 +30,7 @@ namespace RimFront
             internal int Frame;
         }
         static Material material;
+        static readonly Mesh[] bipods = new Mesh[2];
         static readonly Mesh[] hands = new Mesh[MaximumHandMeshes];
         static Color handSkin, handSleeve;
         static bool handPaletteReady;
@@ -44,6 +45,7 @@ namespace RimFront
         {
             string n = (name ?? "").ToLowerInvariant();
             if (!ranged) return n.Contains("knife") || n.Contains("sword") || n.Contains("blade") || n.Contains("spear") ? WeaponKind.Blade : WeaponKind.Blunt;
+            if (NativeMachineGuns.Classify(name) != NativeMachineGuns.Profile.Generic) return WeaponKind.Heavy;
             if (n.Contains("launcher") || n.Contains("rocket") || n.Contains("rpg")) return WeaponKind.Launcher;
             if (n.Contains("grenade")) return WeaponKind.Grenade;
             if (n.Contains("bow")) return WeaponKind.Bow;
@@ -190,7 +192,8 @@ namespace RimFront
             NativeReloadAnimation.Pose animation = NativeReloadAnimation.ForSnapshot(kind, reload);
             ApplyReload(ref position, ref rotation, scale, animation);
             Matrix4x4 transform = Matrix4x4.TRS(position, rotation, new Vector3(scale, scale, scale));
-            DrawModel(kind, transform, pawn.DrawPos, reload, animation);
+            DrawModel(kind, transform, pawn.DrawPos, reload, animation, weapon.def.defName);
+            DrawBipod(pawn, transform);
             NativeLighting.Draw(Hand(Compact(kind), false), transform, material, pawn.DrawPos);
             if (DrawViewHand(handAppearance, true, shieldHand)) NativeLighting.Draw(Hand(Compact(kind), true), transform * Matrix4x4.TRS(animation.LeftHandOffset, Quaternion.Euler(animation.LeftHandEuler), Vector3.one), material, pawn.DrawPos);
         }
@@ -215,7 +218,8 @@ namespace RimFront
             // A stowed weapon remains stowed even when its owner has a native combat job.
             NativeReloadAnimation.Snapshot reload = placement == CarryPlacement.Held ? state.Reload : default;
             NativeReloadAnimation.Pose animation = NativeReloadAnimation.ForSnapshot(kind, reload);
-            DrawModel(kind, Matrix4x4.TRS(position, rotation, new Vector3(scale, scale, scale)), worldPosition, reload, animation);
+            DrawModel(kind, Matrix4x4.TRS(position, rotation, new Vector3(scale, scale, scale)), worldPosition, reload, animation, weapon.def.defName);
+            if (placement == CarryPlacement.Held) DrawBipod(pawn, Matrix4x4.TRS(position, rotation, Vector3.one * scale));
         }
 
         static bool TwoHanded(Thing weapon, WeaponKind kind) => IsTwoHanded(kind, weapon.def.defName,
@@ -377,12 +381,13 @@ namespace RimFront
 
         static void FirstPersonPose(Pawn pawn, WeaponKind kind, out Vector3 position, out Quaternion rotation, out float scale)
         {
-            float recoil = Recoil(pawn);
+            float recoil = Recoil(pawn) * (NativeWeaponBrace.IsMounted(pawn) ? .35f : 1f);
             Quaternion camera = Quaternion.Euler(NativeView.PitchDegrees, NativeView.Yaw * Mathf.Rad2Deg, 0);
             // Use the actual eye transform, including camera interpolation.
             position = NativeView.RenderPosition;
             // Kept in world depth: walls can occlude the viewmodel instead of drawing through them.
-            position += camera * FirstPersonOffset(WeaponHand(NativePawns.Appearance(pawn)), recoil);
+            position += camera * (NativeWeaponBrace.IsMounted(pawn) ? new Vector3(0, -.22f, .52f - recoil * .035f)
+                : FirstPersonOffset(WeaponHand(NativePawns.Appearance(pawn)), recoil));
             rotation = camera * Quaternion.Euler(-recoil * (Compact(kind) ? 8f : 4.5f), -3f, recoil * 1.5f);
             scale = .58f;
             ApplyAction(pawn, true, ref position, ref rotation, scale);
@@ -403,17 +408,34 @@ namespace RimFront
             rotation *= Quaternion.Euler(pose.WeaponEuler);
         }
 
-        static void DrawModel(WeaponKind kind, Matrix4x4 transform, Vector3 sample, NativeReloadAnimation.Snapshot reload, NativeReloadAnimation.Pose animation)
+        static void DrawModel(WeaponKind kind, Matrix4x4 transform, Vector3 sample, NativeReloadAnimation.Snapshot reload, NativeReloadAnimation.Pose animation, string defName)
         {
+            NativeMachineGuns.Profile profile = NativeMachineGuns.Classify(defName);
+            Mesh Whole() => profile == NativeMachineGuns.Profile.Generic ? Model(kind) : NativeMachineGuns.Model(profile);
+            Mesh Piece(WeaponPart part) => profile == NativeMachineGuns.Profile.Generic ? Part(kind, part) : NativeMachineGuns.Model(profile, (int)part);
             if (!reload.Active || !reload.HasTiming)
-            { NativeLighting.Draw(Model(kind), transform, material, sample); return; }
-            NativeLighting.Draw(Part(kind, WeaponPart.Body), transform, material, sample);
+            { NativeLighting.Draw(Whole(), transform, material, sample); return; }
+            NativeLighting.Draw(Piece(WeaponPart.Body), transform, material, sample);
             bool looseRound = reload.SingleRound && kind != WeaponKind.Revolver;
             if (looseRound && kind != WeaponKind.Shotgun)
-                NativeLighting.Draw(Part(kind, WeaponPart.Feed), transform, material, sample);
+                NativeLighting.Draw(Piece(WeaponPart.Feed), transform, material, sample);
             if (animation.ShowFeed)
-                NativeLighting.Draw(Part(looseRound ? WeaponKind.Shotgun : kind, WeaponPart.Feed), transform * Matrix4x4.TRS(animation.FeedOffset, Quaternion.Euler(animation.FeedEuler), Vector3.one), material, sample);
-            NativeLighting.Draw(Part(kind, WeaponPart.Bolt), transform * Matrix4x4.TRS(animation.BoltOffset, Quaternion.identity, Vector3.one), material, sample);
+                NativeLighting.Draw((looseRound ? Part(WeaponKind.Shotgun, WeaponPart.Feed) : Piece(WeaponPart.Feed)), transform * Matrix4x4.TRS(animation.FeedOffset, Quaternion.Euler(animation.FeedEuler), Vector3.one), material, sample);
+            NativeLighting.Draw(Piece(WeaponPart.Bolt), transform * Matrix4x4.TRS(animation.BoltOffset, Quaternion.identity, Vector3.one), material, sample);
+        }
+
+        static void DrawBipod(Pawn pawn, Matrix4x4 transform)
+        {
+            if (!NativeWeaponBrace.HasBipod(pawn)) return;
+            bool deployed = NativeWeaponBrace.VisualDeployed(pawn);
+            int key = deployed ? 1 : 0;
+            if (bipods[key] == null)
+            {
+                var b = new NativeScene.Builder();
+                NativeMachineGuns.BuildBipod(b, deployed);
+                bipods[key] = b.Create("RimFront bipod " + deployed);
+            }
+            NativeLighting.Draw(bipods[key], transform, material, pawn.DrawPos);
         }
 
         internal static Vector3 MuzzleLocal(WeaponKind kind)
@@ -440,7 +462,12 @@ namespace RimFront
             worldPosition.y += kind == WeaponKind.Bow ? .56f : .17f;
             builder.Origin = worldPosition;
             builder.Rotation = rotation * Quaternion.Euler(0, 0, 90);
-            try { BuildGeometry(builder, kind); }
+            try
+            {
+                NativeMachineGuns.Profile profile = NativeMachineGuns.Classify(weapon.def.defName);
+                if (profile == NativeMachineGuns.Profile.Generic) BuildGeometry(builder, kind);
+                else for (int i = 0; i < 3; i++) NativeMachineGuns.BuildGeometry(builder, profile, (WeaponPart)i);
+            }
             finally { builder.Origin = oldOrigin; builder.Rotation = oldRotation; }
         }
 
@@ -557,11 +584,6 @@ namespace RimFront
             b.Box(new Vector3(0, .075f, (barrelStart + length) * .5f), new Vector3(shotgun ? .075f : .05f, shotgun ? .075f : .05f, length - barrelStart), Steel);
             if (shotgun)
                 b.Box(new Vector3(0, -.005f, .64f), new Vector3(.065f, .065f, .58f), Edge);
-            else if (heavy)
-            {
-                for (int side = -1; side <= 1; side += 2)
-                    RotatedBox(b, new Vector3(side * .13f, -.13f, .72f), new Vector3(.035f, .38f, .035f), Quaternion.Euler(0, 0, side * 28), Black);
-            }
             if (sniper)
             {
                 b.Box(new Vector3(0, .20f, .20f), new Vector3(.06f, .13f, .22f), Black);
@@ -598,6 +620,8 @@ namespace RimFront
         {
             foreach (Mesh mesh in models.Values) if (mesh != null) UnityEngine.Object.Destroy(mesh);
             foreach (Mesh mesh in parts.Values) if (mesh != null) UnityEngine.Object.Destroy(mesh);
+            NativeMachineGuns.Dispose();
+            for (int i = 0; i < bipods.Length; i++) { if (bipods[i] != null) UnityEngine.Object.Destroy(bipods[i]); bipods[i] = null; }
             parts.Clear();
             models.Clear(); kinds.Clear();
             held.Clear();

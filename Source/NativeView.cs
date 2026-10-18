@@ -94,6 +94,7 @@ namespace RimFront
 
         internal static void Stop()
         {
+            NativeMinimap.Dispose();
             if (pawn == null && camera == null) return;
             // Clear activity before restoring so Harmony immediately returns camera/UI ownership.
             pawn = null;
@@ -169,6 +170,7 @@ namespace RimFront
                 fire = !paused && !waitForInitialMouseUp && Input.GetMouseButton(0),
                 reload = !paused && Input.GetKeyDown(KeyCode.R),
                 cycleFireMode = !paused && Input.GetKeyDown(KeyCode.F),
+                toggleBrace = !paused && Input.GetKeyDown(KeyCode.V),
                 toggleBipod = !paused && Input.GetKeyDown(KeyCode.G)
             };
         }
@@ -224,10 +226,13 @@ namespace RimFront
             if (current.type == EventType.KeyDown && current.keyCode == KeyCode.Escape) requestRelease = true;
             if (current.type != EventType.Repaint) return;
             NativeTargetIndicators.OnGUI(pawn);
+            NativeMinimap.OnGUI(pawn);
             if (Time.realtimeSinceStartup >= nextHudRefresh)
             {
                 nextHudRefresh = Time.realtimeSinceStartup + 0.1f;
                 weapon = CombatAdapter.Describe(pawn);
+                string mounting = NativeWeaponBrace.Status(pawn);
+                if (mounting != "") weapon.status += " / " + mounting;
                 nameText = pawn.LabelShortCap.ToString();
                 healthText = Mathf.RoundToInt(pawn.health.summaryHealth.SummaryHealthPercent * 100f) + "%";
             }
@@ -239,11 +244,11 @@ namespace RimFront
                 Text.Font = GameFont.Small;
                 Text.Anchor = TextAnchor.MiddleLeft;
                 float width = UI.screenWidth, height = UI.screenHeight;
-                Widgets.DrawBoxSolid(new Rect(16, 16, 620, 56), new Color(0.055f, 0.07f, 0.06f, 0.88f));
+                Widgets.DrawBoxSolid(new Rect(16, 16, 710, 56), new Color(0.055f, 0.07f, 0.06f, 0.88f));
                 GUI.color = new Color(0.85f, 0.91f, 0.79f);
                 Widgets.Label(new Rect(28, 19, 510, 24), "RIMFRONT  /  " + nameText + "  /  " + healthText + "  /  " + Mathf.RoundToInt(1f / Math.Max(0.001f, frameSeconds)) + " FPS");
                 GUI.color = Color.white;
-                Widgets.Label(new Rect(28, 42, 600, 24), "WASD · Mouse aim · LMB fire · R reload · F mode · G bipod · Space pause · Esc exit");
+                Widgets.Label(new Rect(28, 42, 690, 24), "WASD · Mouse aim · LMB fire · R reload · F mode · V brace · G auto · Space pause · Esc exit");
                 Widgets.DrawBoxSolid(new Rect(width - 340, 16, 324, 31), new Color(0.055f, 0.07f, 0.06f, 0.88f));
                 Widgets.Label(new Rect(width - 328, 18, 304, 26), (AnalogMovement.Active ? "Analog" : "Native path") + " / " + NativeScene.DrawCalls + " draws / " + NativeScene.CachedChunks + " chunks");
                 Widgets.DrawBoxSolid(new Rect(16, height - 114, 620, 98), new Color(0.055f, 0.07f, 0.06f, 0.88f));

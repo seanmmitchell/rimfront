@@ -38,4 +38,11 @@ This is controller integration coverage with a simulated engine boundary. It doe
 
 `scripts/test.ps1` runs the scenarios and mutation gate before the other suites. Use `scripts/verify-release.ps1` with the game/Harmony paths to build both targets, run all gates, then package only on success. `package.ps1` is a low-level archive tool, not a verification command. Report named behavior results and live-test status rather than combining scenario counts with geometry assertions.
 
+## V bipod controller coverage
+
+The harness also links production `NativeWeaponBrace.cs`. Eight additional scenarios cover non-CE brace/fold/movement, native CE timed completion and cancellation, queued/paused V, stale input/exit, exact-weapon replacement, held-trigger release gating, disabled CE bipod mechanics, preservation of native reloads, and the exact-component scope of the auto-setup hook. The total is 52 named scenarios. CE components, settings and job timing are simulated; the scope hook is invoked directly. The fixture does not execute Harmony binding or CE stat calculations.
+
+The installed-assembly helper suite separately tests the real classifier, CE spelled-out definition aliases, distinct finite machine-gun meshes, muzzle/socket agreement, nondegenerate triangles, bipod states and mesh budgets. `model-catalog.ps1` exports and renders those compiled meshes.
 Bipod regressions cover G during setup/fire/reload, one-shot consumption, pause/stale/re-entry clearing, unsupported weapons, foreign jobs and movement cancelling a queued click. The `bipod-toggle-ignored` mutation must compile and fail `bipod-toggle-cancels-setup`. The weapon adapter remains simulated here; `WeaponControlTests` separately links the real bipod and source adapters.
+
+Four integration scenarios verify V/G mount transitions, simultaneous input, unsupported G preserving a brace, and pause clearing both pending actions.

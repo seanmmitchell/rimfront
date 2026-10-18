@@ -8,18 +8,20 @@ RimFront captures input each frame and consumes it on game ticks. Rendering, mes
 | --- | --- |
 | Static scene | 49 chunks of 12 × 12 cells; at most one missing-chunk build per frame |
 | Static refresh | Dirty notifications prioritize changes; one cached chunk checked every 100 ms; fallback full cycle about 4.9 seconds |
+| Resource piles | One piece per five units, capped at 18: at most 1,152 triangles for logs or 360 for ingots/blocks; static mesh rebuild only when the quantity signature changes |
 | Lighting | At most one cached chunk relit per frame; 16 temporary muzzle lights |
 | Pawn appearance | 64 cached appearances plus nine shared fallback families; two refresh attempts and one articulated-rig build per frame |
 | Pawn detail | Up to 16 articulated pawns within 14 cells; assembled models otherwise |
 | Vegetation | Up to 4,096 plant cards from 8,192 candidates within 32 cells; 128 reusable texture batches; nearest plants prioritized |
 | Pawn observation | 256 animation observations; 128 reload observations |
-| Weapons / shields | Twelve assembled weapon families, 36 reload parts, four hand meshes; 32 physical shield meshes |
+| Weapons / shields | Twelve generic assembled weapon families, 36 generic reload parts, nine machine-gun profiles with 27 split parts, two bipod meshes, four hand meshes; 32 physical shield meshes |
 | Projectiles / impacts | 96 tracked projectiles, 128 tracer entries, 192 impact particles, 64 contact marks |
 | Blood | 256 transient particles, 128 recent event identities; 96 persistent splats per chunk, two blood things per cell, up to five instances per blood thing |
 | Shield effects | 48 impact entries, 24 haze candidates; haze discovery every 15 game ticks |
 | Weather | 96 rain streaks and 64 snowflakes; reusable precipitation mesh updated at 20 Hz |
 | Crosshair query | 1,024 cells, 768 things, 65,536 triangle checks; 768-entry CPU geometry cache |
 | Pawn indicators | 24 labels, 512 retained candidates; up to 512 pawns scanned per render frame |
+| Minimap | One 96 × 96 texture; 9,216 cell samples and one existing bounded aim query every 200 ms; immediate refresh after travel would lose the minimum 20-tile surroundings. Up to 512 pawn candidates examined per refresh, 128 retained markers with visibility rechecked per repaint; no extra camera or full-map scan |
 
 Live pawns and door leaves update separately from static chunks. Shared family fallback models are created lazily outside the appearance refresh budget, so cold entry into a mixed-species scene can create several models in one frame. Geometry/color setters can cause full Waylith mesh uploads; incremental relighting still has a cost. Transparent shields add blending work. Dense blood and over-budget animation use simplified presentation.
 

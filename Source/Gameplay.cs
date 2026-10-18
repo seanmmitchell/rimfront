@@ -158,6 +158,9 @@ namespace RimFront
                         busy is Stance_Cooldown && busy.verb == verb ? busy.ticksLeft : 0,
                         bursting ? verb.verbProps.AdjustedCooldownTicks(verb, pawn) : 0);
                     LocalTargetInfo target = ownedJob.targetA;
+                    // Explicitly release this warmup before clearing aim ownership.
+                    // A failed native expiration must not leave an orphan busy stance.
+                    if (busy is Stance_Warmup && busy.verb == verb) pawn.stances.CancelBusyStanceSoft();
                     verb.Reset();
                     if (bursting && cooldown > 0)
                         pawn.stances.SetStance(new Stance_Cooldown(cooldown, target, verb));
@@ -574,7 +577,7 @@ namespace RimFront
             => progressing ? 0 : Math.Min(MaximumIdleTicks - 1, Math.Max(0, previous)) + 1;
         internal static bool Progressing(bool busy, bool changedStance, int remaining, int previousRemaining,
             int shotTick, int previousShotTick)
-            => (busy && (changedStance || remaining < previousRemaining)) || shotTick > previousShotTick;
+            => (busy && remaining > 0 && (changedStance || remaining < previousRemaining)) || shotTick > previousShotTick;
         // A short click retains its first warmup/shot. Moving or reloading explicitly
         // cancels it; releasing the trigger cancels any remaining burst after that shot.
         internal static bool ShouldCancel(bool held, bool fired, bool moving, bool reload, bool invalid, int idleTicks)

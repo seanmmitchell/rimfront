@@ -23,13 +23,13 @@ namespace RimFront
         }
     }
 
-    [HarmonyPatch(typeof(Stance_Busy), nameof(Stance_Busy.StanceBusy), MethodType.Getter)]
     internal static class MovingFireStance
     {
-        static void Postfix(Stance_Busy __instance, ref bool __result)
-        {
-            if (RimFrontGame.Active?.AllowsAttackMovement(__instance) == true) __result = false;
-        }
+        // Only the pather may ignore an owned firing stance. Native attack toils,
+        // cleanup and CE must continue seeing the real busy state, even at rest.
+        internal static bool PathBusy(bool busy, Pawn_PathFollower follower)
+            => busy && !(NativeView.ControlledPawn?.pather == follower
+                && RimFrontGame.Active?.AllowsAttackMovement(NativeView.ControlledPawn.stances.curStance as Stance_Busy) == true);
     }
 
     [HarmonyPatch(typeof(Pawn_PathFollower), "CostToPayThisTick")]

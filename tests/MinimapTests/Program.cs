@@ -41,6 +41,26 @@ static class Program
         }
         Check(MinimapView.Frame(100, 100, false, 220, 100).Size == 50, "lost aim returns to local view without retaining a stale target");
         var state = new MinimapRenderState();
+        var refresh = new MinimapRefreshPolicy();
+        Check(refresh.Due(0), "initial minimap render is eligible immediately");
+        refresh.Complete(1, .001, true, false);
+        Check(!refresh.Due(1.2) && refresh.Due(1.25), "cheap map refreshes at most four times a second");
+        refresh.Complete(2, .04, true, false);
+        Check(!refresh.Due(3.99) && refresh.Due(4), "expensive render backs off immediately to two seconds");
+        refresh.Complete(4, .001, true, false);
+        Check(refresh.Next > 5.5, "recovery is gradual rather than expensive/cheap oscillation");
+        refresh.Reset(); refresh.Complete(5, .001, true, true);
+        Check(!refresh.Due(5.99) && refresh.Due(6), "paused maps render at most once a second");
+        refresh.Complete(10, double.NaN, false, false);
+        Check(refresh.Next == 12, "unavailable renderer backs off instead of retrying each repaint");
+        refresh.Reset();
+        int renders = 0;
+        for (int frame = 0; frame < 600; frame++)
+        {
+            double now = frame / 60.0;
+            if (refresh.Due(now)) { renders++; refresh.Complete(now, .02, true, false); }
+        }
+        Check(renders <= 10, "20ms native pass performs at most ten renders over ten seconds at 60fps");
         Check(!state.Active && state.View.Size == 0, "no native camera override outside a render pass");
         for (int i = 0; i < 3; i++)
         {

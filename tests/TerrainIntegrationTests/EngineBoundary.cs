@@ -1,6 +1,8 @@
 // Simulated map/object boundary. Production targeting, snapshots and mountain triangles are linked unchanged.
 using UnityEngine;
 namespace Verse {
+public static class Find { public static TickManager TickManager = new TickManager(); }
+public sealed class TickManager { public int TicksGame; }
 public struct IntVec3 : IEquatable<IntVec3> {
  public int x,y,z; public IntVec3(int x,int y,int z){this.x=x;this.y=y;this.z=z;}
  public bool Equals(IntVec3 b)=>x==b.x&&z==b.z;

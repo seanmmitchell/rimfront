@@ -56,6 +56,8 @@ internal static class Program
             ("moving-fire-production-hooks", MovingHooks),
             ("invalid-aim-recovery", InvalidAim),
             ("stalled-attack-recovery", StalledAttack),
+            ("negative-warmup-recovers", NegativeWarmup),
+            ("cancel-clears-owned-warmup", CancelWarmup),
             ("multiple-ticks-per-frame", MultipleTicks),
             ("fixed-mode-held-fire", FixedHeld),
             ("exit-mid-burst", ExitMidBurst),
@@ -610,9 +612,7 @@ internal static class Program
         var busy = (Verse.Stance_Busy)world.Pawn.stances.curStance;
         bool Busy(Verse.Stance_Busy stance)
         {
-            object[] args = { stance, true };
-            typeof(RimFront.MovingFireStance).GetMethod("Postfix", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(null, args);
-            return (bool)args[1];
+            return stance != world.Pawn.stances.curStance || RimFront.MovingFireStance.PathBusy(true, world.Pawn.pather);
         }
         float Payment(Verse.Pawn_PathFollower pather)
         {
@@ -621,6 +621,7 @@ internal static class Program
             return (float)args[1];
         }
         Require(!Busy(busy) && Payment(world.Pawn.pather) == 1f, "actual movement hooks did not unlock/penalize owned fire");
+        Require(busy.StanceBusy, "movement exception changed combat's native busy state");
         Require(Busy(new Verse.Stance_Warmup(1, default, world.Verb)) && Payment(new Verse.Pawn_PathFollower()) == 4f, "actual movement hooks affected another pawn/stance");
         world.Pawn.stances.stunner.Stunned = true;
         Require(Busy(busy), "actual hook bypassed stun"); world.Pawn.stances.stunner.Stunned = false;
@@ -647,6 +648,31 @@ internal static class Program
         Require(world.Shots == 0, "Invalid aim emitted shots.");
         world.InvalidAim = false;
         Until(world, () => world.Shots >= 3, "Held fire stayed blocked after aim became valid.");
+    }
+
+    static void NegativeWarmup()
+    {
+        foreach (float moving in new[] { 0f, 1f })
+        {
+            using var world = Loaded("Single"); world.ExpiredWarmup = true;
+            world.Frame(held: true, forward: moving); world.Tick();
+            var attack = world.Pawn.CurJob;
+            for (int i = 0; i < 75; i++) { world.Tick(); world.Frame(held: true, forward: moving); }
+            Require(world.Pawn.CurJob != attack && !(world.Pawn.stances.curStance is Verse.Stance_Warmup),
+                "negative warmup defeated the watchdog or left an orphan busy stance");
+            Require(world.Shots == 0 && world.AttackOrders == 1, "recovery invented a Semi-auto click");
+            world.ExpiredWarmup = false; world.Frame(); world.Frame(held: true, forward: moving);
+            Until(world, () => world.Shots == 1, "fresh click did not recover from negative warmup");
+        }
+    }
+    static void CancelWarmup()
+    {
+        using var world = Loaded(); world.WarmupTicks = 300;
+        world.Frame(held: true); world.Tick(); world.InvalidAim = true; world.Tick();
+        Require(!(world.Pawn.stances.curStance is Verse.Stance_Warmup), "invalid aim left a blocking warmup after cancellation");
+        Require(world.WarmupPresentOnReset == 0, "verb Reset ran while its canceled warmup was still installed");
+        world.InvalidAim = false;
+        Until(world, () => world.Shots > 0, "held Auto failed to recover after canceled warmup", limit: 400);
     }
 
     static void ExitMidBurst()

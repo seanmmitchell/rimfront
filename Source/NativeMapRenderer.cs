@@ -16,7 +16,12 @@ namespace RimFront
     // simulation, weather updates and mesh invalidation still run once in the game loop.
     internal static class NativeMapRenderer
     {
-        internal const int Resolution = 512;
+        internal const int Resolution = 256;
+        internal const int MaximumDynamicThings = 256;
+        static readonly List<Thing> dynamicThings = new List<Thing>(MaximumDynamicThings);
+#if RW17
+        static readonly List<MeshDrawCommand> commands = new List<MeshDrawCommand>(2048);
+#endif
         internal static readonly MinimapRenderState State = new MinimapRenderState();
         internal static bool Rendering => State.Active;
         internal static Camera RenderCamera => renderCamera;
@@ -53,7 +58,7 @@ namespace RimFront
                     // Camera.Render would also copy pending first-person draws in 1.7.
                     // Capture only this native pass, including its property blocks and
                     // instanced/batched submissions, then use the game's target renderer.
-                    var commands = new List<MeshDrawCommand>();
+                    commands.Clear();
                     using (MeshDrawSubmission.BeginCapture(commands)) DrawMap(map);
                     CameraTextureRenderer.Current.Render(target, commands, CameraViewFactory.GetView(renderCamera),
                         new Rect(0, 0, 1, 1), renderCamera.backgroundColor);
@@ -105,14 +110,29 @@ namespace RimFront
         static void DrawMap(Map map)
         {
             map.mapDrawer.DrawMapMesh();
-            map.dynamicDrawManager.DrawDynamicThings();
-            map.gameConditionManager.GameConditionManagerDraw(map);
+            // Never start a second whole-colony cull, pawn-atlas preparation or
+            // parallel drawing job from OnGUI. Keep native art for local doors,
+            // items and buildings; small pawn dots are drawn by the HUD instead.
+            dynamicThings.Clear();
+            CellRect rect = ViewRect();
+            for (int z = rect.minZ; z <= rect.maxZ && dynamicThings.Count < MaximumDynamicThings; z++)
+            for (int x = rect.minX; x <= rect.maxX && dynamicThings.Count < MaximumDynamicThings; x++)
+            {
+                var cell = new IntVec3(x, 0, z);
+                if (cell.Fogged(map)) continue;
+                foreach (Thing thing in map.thingGrid.ThingsListAtFast(cell))
+                {
+                    if (dynamicThings.Count >= MaximumDynamicThings) break;
+                    if (thing.Position != cell || thing is Pawn || thing is Corpse || !thing.Spawned
+                        || thing.def.drawerType == DrawerType.MapMeshOnly || thing.def.drawerType == DrawerType.None) continue;
+                    dynamicThings.Add(thing);
+                }
+            }
+            // Preserve the native phase order, using one bounded local list.
+            foreach (Thing thing in dynamicThings) thing.DynamicDrawPhase(DrawPhase.EnsureInitialized);
+            foreach (Thing thing in dynamicThings) thing.DynamicDrawPhase(DrawPhase.ParallelPreDraw);
+            foreach (Thing thing in dynamicThings) thing.DynamicDrawPhase(DrawPhase.Draw);
             MapEdgeClipDrawer.DrawClippers(map);
-            map.designationManager.DrawDesignations();
-            map.overlayDrawer.DrawAllOverlays();
-            map.temporaryThingDrawer.Draw();
-            map.flecks.FleckManagerDraw();
-            map.weatherManager.DrawAllWeather();
         }
 
         internal static CellRect ViewRect()
@@ -134,6 +154,10 @@ namespace RimFront
             renderCamera = null;
             if (target != null) { target.Release(); UnityEngine.Object.Destroy(target); }
             target = null;
+            dynamicThings.Clear();
+#if RW17
+            commands.Clear();
+#endif
         }
     }
 

@@ -1,6 +1,6 @@
-# Native performance guide — 0.6.2
+# Native performance guide — 0.6.3 test build
 
-RimFront captures input each frame and consumes it on game ticks. Rendering, mesh creation, collision queries and game simulation share the process. Bounded work limits worst-case growth; it does not establish live FPS or eliminate all latency. No 0.6.2 frame-time improvement is claimed.
+RimFront captures input each frame and consumes it on game ticks. Rendering, mesh creation, collision queries and game simulation share the process. Bounded work limits worst-case growth; it does not establish live FPS or eliminate all latency. Live FPS improvements must be measured on the same save and hardware.
 
 ## Main budgets
 
@@ -19,9 +19,9 @@ RimFront captures input each frame and consumes it on game ticks. Rendering, mes
 | Blood | 256 transient particles, 128 recent event identities; 96 persistent splats per chunk, two blood things per cell, up to five instances per blood thing |
 | Shield effects | 48 impact entries, 24 haze candidates; haze discovery every 15 game ticks |
 | Weather | 96 rain streaks and 64 snowflakes; reusable precipitation mesh updated at 20 Hz |
-| Crosshair query | 4,096 cells, 3,072 things, 256 traversed ray segments, 65,536 triangle checks; 3,072-entry CPU geometry cache |
+| Crosshair query | 4,096 cells, 3,072 things, 256 traversed ray segments, 65,536 triangle checks; 3,072-entry CPU geometry cache; identical pawn/map/eye/yaw/pitch/range/frame/tick queries share one result |
 | Pawn indicators | 24 labels, 512 retained candidates; up to 512 pawns scanned per render frame |
-| Minimap | One disabled orthographic camera and a 512 × 512 render target with a depth buffer. Native map/pawn/effect draws refresh every 200 ms; immediate refresh restores local coverage after travel. Uses native culling and assets; one existing aim query per refresh. 1.7 captures only this pass; 1.6 routes native draws to its camera/layer. Dense maps incur native renderer work and require live frame-time measurements |
+| Minimap | 256 × 256 target (75% fewer pixels than 512²); reused 1.7 command list; native map meshes plus at most 256 local dynamic objects. No full-colony dynamic manager, pawn atlases, weather, flecks, designations or overlays. Image refresh 0.25–2 seconds, scheduled after completion, with immediate backoff toward a 2% CPU-time budget (capped at 2 seconds; expensive passes can exceed that budget). Paused refresh ≥1 second; failures back off 2 seconds. Pawn/aim overlays refresh at 5 Hz: at most 128 pawn candidates per update and 64 retained dots. Toggle off to eliminate map-pass cost |
 
 Mountain profiles keep one rock mask and height field for the active map. A two-pass distance transform and summed-area density calculation take linear time in map cells on entry and after rock occupancy changes. Non-rock mesh changes do not rebuild the profile. A profile revision dirties cached chunks. Each chunk captures its own immutable 13 × 13 corner grid and rock occupancy, then publishes that snapshot only after replacing its mesh. Aim/projectile geometry uses the published snapshot and changes revision with that mesh. Eviction removes the snapshot. Chunks still rebuild at most once per frame, so neighboring chunks can temporarily show different revisions while updates settle. The profile includes unexplored rock bulk and caps height at 24 tiles. Unknown rock and ore share a uniform exterior tint, while opaque fog obscures underground cells. Exterior surfaces above the 2.55-tile ceiling receive sky lighting.
 

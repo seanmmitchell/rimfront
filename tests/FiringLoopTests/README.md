@@ -16,8 +16,11 @@ Run from the repository root with a .NET 10 SDK:
 ./scripts/test-firing-loop.ps1 -VerifyMutations
 ```
 
-The mutation gate compiles seven temporary variants of the production controller, independently restoring:
+The mutation gate compiles ten temporary variants of the production controller, independently restoring:
 
+- Expired negative warmup ticks counted as progress (`negative-warmup-recovers` must fail standing and moving).
+- Resetting a verb before releasing its owned warmup (`cancel-clears-owned-warmup` must fail).
+- Ignoring the G bipod toggle (`bipod-toggle-cancels-setup` must fail).
 - The stale-input physical-release latch (`stale-auto-recovery` must fail).
 - Reload resumption of the old owned attack (`reload-resume-ownership` must fail).
 - Verb reset on successful cleanup (`successful-repeat-cycle` must fail).

@@ -98,6 +98,11 @@ try {
     if ($VerifyMutations) {
         $original = [IO.File]::ReadAllText($gameplayPath)
         $mutations = @(
+            @{ Name = 'negative-countdown-is-progress'; Scenario = 'negative-warmup-recovers';
+                Anchor = 'busy && remaining > 0 &&'; Replacement = 'busy &&' },
+            @{ Name = 'canceled-warmup-left-busy'; Scenario = 'cancel-clears-owned-warmup';
+                Anchor = 'if (busy is Stance_Warmup && busy.verb == verb) pawn.stances.CancelBusyStanceSoft();';
+                Replacement = '; // mutation: leave canceled warmup blocking fire' },
             @{ Name = 'bipod-toggle-ignored'; Scenario = 'bipod-toggle-cancels-setup';
                 Anchor = 'NativeBipods.TryToggle(pawn, out message)'; Replacement = 'false /* mutation: ignore G */' },
             @{ Name = 'stale-release-latch'; Scenario = 'stale-auto-recovery';

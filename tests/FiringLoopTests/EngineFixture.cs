@@ -20,12 +20,14 @@ public sealed class FiringWorld : IDisposable
     public string Mode = "Auto";
     public int WarmupTicks = 3, BurstRounds = 3, BurstIntervalTicks = 2, CooldownTicks = 3, ReloadTicks = 5;
     public bool InvalidAim, StallAttack;
+    public bool ExpiredWarmup;
     public bool HasBipod = true, AutoBipod = true;
     public int BipodToggles;
     public bool DeferNextOrderedJob, HoldQueuedJobs;
     public bool RecycleNextOrderedJob, QueueRecycledJob;
     public Job RecycledJob;
     public int Shots, Reloads, ResetCount, ResumedForeignAttacks, AttackOrders;
+    public int WarmupPresentOnReset;
     public readonly List<int> ShotTicks = new List<int>();
     public readonly List<string> Events = new List<string>();
     public List<string> Errors => Log.Errors;
@@ -117,7 +119,9 @@ public sealed class FiringWorld : IDisposable
     {
         if (Pawn.CurJob == null && !HoldQueuedJobs) Pawn.jobs.StartNextQueued();
         Stance_Busy busy = Pawn.stances.curStance as Stance_Busy;
-        if (busy != null && busy.ticksLeft > 0) busy.ticksLeft--;
+        if (busy != null && (busy.ticksLeft > 0 || ExpiredWarmup)) busy.ticksLeft--;
+        // Simulate a native/mod expiration that fails to replace its stance.
+        if (ExpiredWarmup && busy is Stance_Warmup && busy.ticksLeft <= 0) return;
         // Native VerbTick is independent of JobDriver lifetime. Removing a job alone
         // must not magically stop an already active burst; production must Reset it.
         if (Verb.Phase == "burst" && (busy == null || busy.ticksLeft <= 0))
@@ -244,7 +248,7 @@ namespace Verse
         public readonly FiringWorld World; public readonly VerbProperties verbProps;
         public bool IsMeleeAttack; public bool Bursting; public int LastShotTick = -1, Remaining; public string Phase = "idle";
         public Verb(FiringWorld world) { World = world; verbProps = new VerbProperties(world); }
-        public void Reset() { World.ResetCount++; Bursting = false; Remaining = 0; Phase = "idle"; }
+        public void Reset() { World.ResetCount++; if (World.Pawn.stances.curStance is Stance_Warmup) World.WarmupPresentOnReset++; Bursting = false; Remaining = 0; Phase = "idle"; }
     }
     public class VerbProperties
     { readonly FiringWorld world; public VerbProperties(FiringWorld w) { world = w; } public int AdjustedCooldownTicks(Verb verb, Pawn pawn) => world.CooldownTicks; }
@@ -253,7 +257,7 @@ namespace Verse
     public class Stance_Cooldown : Stance_Busy { public Stance_Cooldown(int ticks, LocalTargetInfo target, Verb verb) : base(ticks, verb) { } }
     public class Stance_Warmup : Stance_Busy { public Stance_Warmup(int ticks, LocalTargetInfo target, Verb verb) : base(ticks, verb) { } }
     public class Stunner { public bool Stunned; }
-    public class StanceTracker { public Stunner stunner = new Stunner(); public Stance curStance = new Stance(); public void SetStance(Stance stance) { curStance = stance; } }
+    public class StanceTracker { public Stunner stunner = new Stunner(); public Stance curStance = new Stance(); public void SetStance(Stance stance) { curStance = stance; } public void CancelBusyStanceSoft() { if (curStance is Stance_Warmup) curStance = new Stance(); } }
     public class Pawn_PathFollower { public bool Moving; public LocalTargetInfo Destination; public void StopDead() { Moving = false; } public void StartPath(IntVec3 cell, PathEndMode mode) { Destination = cell; Moving = true; } }
     public readonly struct IntVec3 : IEquatable<IntVec3>
     {

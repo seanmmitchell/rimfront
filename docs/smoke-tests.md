@@ -17,7 +17,7 @@ Enable **Use viewpoint-based 2D characters** in RimFront mod settings during pos
 | Package/load | Inspect the ZIP and launch the extracted mod | About, LoadFolders, both assemblies, README/license/docs present; no bundled game/Harmony dependencies; only the matching RimFront assembly loads; no patch/load errors |
 | Eligibility | Select drafted/undrafted, hostile, nonhuman and downed pawns | Entry offered only for eligible drafted player humanlikes |
 | Entry and initial click | Choose Play in RimFront, then release and press LMB | Perspective view enters inside the game; entry click never attacks |
-| Input ownership | Look, move and use F/R/Space | Native controls work without colony shortcuts, gizmos or stock camera handling interfering |
+| Input ownership | Look, move and use F/V/R/Space | Native controls work without colony shortcuts, gizmos or stock camera handling interfering |
 | Pause trigger | Hold LMB across pause/resume; click while paused | No fabricated new press; release/repress rearms firing; paused mode presses are discarded |
 | Slow-frame recovery | Hold LMB in Auto/Fixed through a delay over 350 ms, then repeat in Semi-auto/Burst | Stale tick cancels the old attack; Auto/Fixed resumes on fresh held input; Semi-auto/Burst receives no synthetic click and waits for release/repress; pause/mode-switch release gates still apply |
 | Firing trace | Enable Diagnostics → Trace firing input and actions; tap/hold/release, pause, change modes, reload and run empty; disable and reenter | Player.log connects observed input transitions to accepted/blocked triggers and subsequent actions with weapon/mode/ammo context; repeated failures are bounded, no per-frame held-input spam, disabling stops trace entries; gameplay is unchanged |
@@ -48,6 +48,20 @@ For vegetation, orbit trees and bushes at several heights and distances: cards r
 | Embrasure targeting | Aim and fire a supported straight vanilla/CE ballistic shot through a port at standing height, then at the base, corner pier and lintel | Port selects geometry beyond it; solid frame remains targetable; record native accuracy/cover outcomes separately from the rendered opening |
 | Depth/fog/cache | Look vertically, approach walls, cross chunk borders and face fog | Perspective/depth are correct; no flat-map duplicates, missing near scenery or exposed hidden objects |
 | Render coexistence | Add other camera/visual/movement mods | Record conflicts and repeated errors; do not assume universal compatibility |
+
+## Carried bipods and weapon models
+
+| Case | Action | Expected result |
+| --- | --- | --- |
+| Key separation | Use F, then V on an M60/M249/PKM | F cycles native fire mode; V deploys the carried bipod without changing fire mode |
+| CE timed deployment | Enable CE bipod mechanics, press V while stationary, wait | Native setup progresses without leaving first person; deployed pose starts only after CE completes the job |
+| Fold and auto-setup | Press V again with CE auto-setup enabled | Native fold occurs; automatic setup does not immediately undo the explicit fold; other colonists still use native auto-setup |
+| Cancellation | During setup press V or move, then wait; repeat with weapon swap, stale input and exit | Exact setup ends, no later deployment or stale mount, movement resumes |
+| CE settings | Disable CE bipod mechanics, then press V with a bipod weapon | Clear feedback; no native deployment or stat changes |
+| Trigger and reload | Hold LMB while pressing V, then release/repress; reload while deployed | No queued surprise shot from V; fresh click fires; native reload timing/ammunition retained |
+| Non-CE long gun | V with rifle, shotgun, SMG, sniper or launcher; move | Stationary brace and visible legs; movement releases; no added gameplay stat bonus |
+| Weapon appearance | Equip M60/M249/PKM/MG42/RPK/DP28/Lewis/M240/M1919 variants; fold, deploy, reload and drop | Correct receiver/feed/stock silhouette in first-person, third-person and dropped rendering; bipod legs match state; reload parts remain attached correctly |
+| Lifecycle restore | Leave possession after V fold, then issue normal colony orders | Native CE automatic policy resumes; no effects on other pawns or weapons |
 
 ## Firing, targeting and repeat cycles
 

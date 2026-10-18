@@ -21,3 +21,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Object catalog rendering failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Cover and resource catalog rendering failed.' }
 & $Python (Join-Path $PSScriptRoot 'render-model-catalog.py') ([IO.Path]::ChangeExtension($geometry,'actions.json')) (Join-Path $projectRoot 'docs/action-catalog.png') 'RimFront 0.5 / outfits and body poses'
 if ($LASTEXITCODE -ne 0) { throw 'Action catalog rendering failed.' }
+
+& $Python (Join-Path $PSScriptRoot 'render-model-catalog.py') ([IO.Path]::ChangeExtension($geometry,'weapons.json')) (Join-Path $projectRoot 'docs/weapon-catalog.png') 'RimFront / carried machine guns and bipods'
+if ($LASTEXITCODE -ne 0) { throw 'Weapon catalog rendering failed.' }

@@ -14,7 +14,7 @@ RimFront captures input each frame and consumes it on game ticks. Rendering, mes
 | Pawn detail | Up to 16 articulated pawns within 14 cells; assembled models otherwise |
 | Vegetation | Up to 4,096 plant cards from 8,192 candidates within 32 cells; 128 reusable texture batches; nearest plants prioritized |
 | Pawn observation | 256 animation observations; 128 reload observations |
-| Weapons / shields | Twelve assembled weapon families, 36 reload parts, four hand meshes; 32 physical shield meshes |
+| Weapons / shields | Twelve generic assembled weapon families, 36 generic reload parts, nine machine-gun profiles with 27 split parts, two bipod meshes, four hand meshes; 32 physical shield meshes |
 | Projectiles / impacts | 96 tracked projectiles, 128 tracer entries, 192 impact particles, 64 contact marks |
 | Blood | 256 transient particles, 128 recent event identities; 96 persistent splats per chunk, two blood things per cell, up to five instances per blood thing |
 | Shield effects | 48 impact entries, 24 haze candidates; haze discovery every 15 game ticks |

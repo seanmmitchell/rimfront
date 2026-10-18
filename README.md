@@ -1,6 +1,6 @@
 # RimFront 0.6.3 test build
 
-The current source includes a manual-reload fix for deferred native attack orders, 35 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
+The current source includes a manual-reload fix for deferred native attack orders, 52 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 
@@ -19,10 +19,23 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 | Left mouse | Attack at the crosshair |
 | R | Request a supported native CE reload |
 | F | Cycle the equipped CE weapon's supported fire modes |
+| V | Deploy/fold the carried weapon bipod or brace |
+| G | Toggle automatic setup of the equipped CE bipod during possession |
 | Space | Pause/resume |
 | Escape | Return to colony view |
 
 The entry click does not fire. The HUD shows health, weapon, ammunition, fire mode, movement mode, FPS estimate and rendering counters. Focus loss, a blocking dialog, loss of pawn eligibility, a map change or an incompatible external job releases control. Exit restores camera, cursor, subcamera, background-execution and fire-at-will settings. Possession is not saved. A Windows safeguard preserves existing game-window icons around transitions; its live behavior still needs verification.
+
+The top-right minimap follows the controlled pawn in a north-up tactical view. White marks you and your facing direction; gold marks the crosshair's selected aim point (hollow for an empty point), joined to you by an aim line. It normally shows 25 tiles in every direction. Distant aim pans and widens the view to retain that neighbourhood and four tiles of context around the target. Framing follows the same weapon-range, cover and fog limits as shooting; it does not extend weapon or first-person view range. Movement between refreshes retains at least 20 tiles on every side. Terrain, snow, buildings and door state refresh five times per second, including while paused. Visible pawn dots use the existing relationship colors; walls and fog hide them. Outside-map space remains dark at map edges. The minimap releases its texture and map references on exit.
+## Carried weapon bipods
+
+Press **V** while stationary to deploy or fold the carried weapon; **F** still changes fire mode. On weapons with a CE bipod, V uses CE's timed setup job and native deployment/folding methods, respecting the CE bipod-mechanics setting. V cancels setup; movement folds it. An explicit fold suppresses CE auto-setup for that equipped weapon until G restores automatic setup or possession ends. Other pawns retain native auto-setup.
+
+Other ranged long guns can use a stationary braced presentation with a centered viewmodel, reduced visual kick and deployed support legs. This fallback does not add accuracy, range or recoil-stat bonuses. CE remains responsible for its own gameplay modifiers. Pistols, thrown grenades, bows and melee weapons cannot brace. Paused V presses are discarded; stale input, weapon replacement and exit clear the brace. Toggling consumes queued fire and requires a held trigger to be released before firing again.
+
+The carried M60, M249/Minimi, PKM/PKP, MG42/MG34/MG3, RPK, DP28/DP27, Lewis, M240/FN MAG and M1919 families now have distinct original meshes, split reload parts, and folded/deployed bipod geometry. Models are shared across first-person, held and dropped rendering. Actual CE aliases such as `CE_Gun_MSixty` and `CE_Gun_MTwoFourNine` are recognized. Unknown definitions retain the generic weapon model.
+
+[Weapon model preview](docs/weapon-catalog.png) shows the compiled CPU geometry, not in-game screenshots. Regenerate it with `scripts/model-catalog.ps1` and local 1.7/Harmony references.
 
 ## Combat and fire modes
 
@@ -43,7 +56,9 @@ Version 0.6.2 restores held Auto/Fixed fire after fresh input returns from a slo
 
 For firing problems, enable **Options → Mod settings → RimFront → Diagnostics → Trace firing input and actions**, reproduce the issue, then disable it. The option applies immediately and is off by default. Entries prefixed `[RimFront:Fire]` in `Player.log` connect physical mouse transitions to trigger gates, attack orders, observed shots, reloads, native job changes and interruptions, with weapon/mode/ammunition context. Repeated failures are deduplicated and output is rate limited. On Windows, the log is under `%USERPROFILE%\AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios\Logs\Player.log` on the inspected 1.7 installation (older versions may put it directly in the parent folder). Copy the log after reproducing, before restarting the game.
 
-Successful completed attacks preserve CE repeat-shot timing state. Interruptions reset the owned verb. Verified automatic setup for the equipped CE bipod weapon keeps first-person control while its stationary job completes; unrelated or forced jobs retain their normal ownership rules. These behaviors need live sustained-fire and reload checks, especially with the M60.
+Successful completed attacks preserve CE repeat-shot timing state. Interruptions reset the owned verb. Verified automatic setup for the equipped CE bipod weapon keeps first-person control while its stationary job completes. Press **G** to disable automatic setup and close the bipod through CE, including cancelling a setup already in progress; press it again to allow CE setup under its normal aim-mode/global settings. The HUD shows the current preference. It resets to ON when taking control and does not change CE global settings. Unrelated or forced jobs retain their normal ownership rules. These behaviors need live sustained-fire and reload checks, especially with the M60.
+
+Owned manual CE shots sample the displayed muzzle for each native cast, including the M60 heavy-weapon model. Source coordinates, height, range estimation and shot rotation use that same sample. A short rendered-geometry query clips the source before intervening cover; near targets or an incomplete query use the camera position. CE still supplies spread, recoil, pellet/barrel offsets, gravity, ammo and damage. Vanilla projectiles retain their existing adapter.
 
 Version 0.6.1 prevents a verified CE reload from suspending and replaying RimFront's old firing job. Reloads still run natively; subsequent fire uses current input and a fresh aim point. Automatic reload after the last round does not create a second Semi-auto or Burst trigger press. Foreign attack orders keep their usual ownership rules.
 
@@ -63,7 +78,11 @@ View range defaults to **60 tiles**, twice the original 30. Under **Options → 
 
 Original models represent terrain, fog, walls, animated doors, furniture, workstations, utilities, items, corpses and equipment. Unknown definitions use size/category/name-based fallbacks. Nine pawn rig families, six human body shapes, supported apparel layers and recognized missing/prosthetic limbs provide broad coverage, not bespoke models for every definition or xenotype.
 
+Barricades use braced rails and posts tinted by their material. Embrasures use wall-height frames with open firing ports on all four faces, including non-rotatable linked definitions. Wood piles have faceted logs with cut ends, steel uses beveled ingots, and stone blocks use alternating masonry courses. Piles add one visible piece per five units, up to 18 pieces; a normal 75-unit stack shows 15 pieces. Hauling and splitting stacks update the displayed quantity through the scene cache. The [cover and resource preview](docs/cover-and-resource-models.png) compares quantities at a shared scale within each row using compiled geometry, without starting the game.
+
 Trees, bushes and other plants use their installed game/mod artwork on upright, camera-facing sprites. Perspective, depth testing, growth and native lighting still apply. Plant collision uses stable approximate trunk/foliage volumes within the sprite's size envelope; it does not rotate with the camera or trace individual transparent leaf pixels. Existing game textures are read at runtime and are not bundled with RimFront.
+
+Enable **Options → Mod settings → RimFront → Use viewpoint-based 2D characters** to replace nearby 3D pawn models with upright sprites from the installed game/mod character atlas. Front, side and back artwork changes relative to your viewpoint. The option is saved, defaults off and applies immediately. Apparel and health appearance use native atlas invalidation; unsupported art falls back to 3D. Atlas warmup is limited to two dirty frames per render frame, with 3D fallback while waiting. Sleeping/downed pawns and corpses use sideways cards. First-person hands remain 3D. This is a presentation option: combat uses the existing body geometry as an approximate collision proxy, not individual sprite pixels. 2D cards omit held equipment extras and articulated gait/reload animation.
 
 Nearby pawns animate from real motion, jobs and observed attacks. First-person hands and sleeves reflect supported appearance. Drafted pawns hold equipment; undrafted pawns stow one-handed weapons at the hip, two-handed weapons on the back, and physical shields on the back. Available-arm rules prevent duplicate weapon/shield hand assignments. Energy belts remain separate from physical shield models.
 

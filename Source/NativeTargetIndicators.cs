@@ -46,7 +46,7 @@ namespace RimFront
         }
         internal static bool IsDistinctAlly<T>(T faction, T player, Func<T, T, bool> lookup) where T : class
             => faction != null && player != null && !ReferenceEquals(faction, player) && lookup(faction, player);
-        static Status State(Pawn pawn, Pawn controlled)
+        internal static Status State(Pawn pawn, Pawn controlled)
         {
             bool ownFaction = pawn.Faction == Faction.OfPlayer;
             return Classify(pawn.IsPrisoner, PrisonBreakUtility.IsPrisonBreaking(pawn), pawn.HostileTo(controlled), pawn.IsColonist,

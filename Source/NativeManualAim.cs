@@ -24,6 +24,8 @@ namespace RimFront
             internal NativeAimTargeting.TargetInfo Target;
             internal float Yaw, Pitch;
             internal float LastShotRange;
+            internal Vector3 ShotSource;
+            internal bool HasShotSource;
             internal bool Valid;
         }
         static Aim current;
@@ -180,7 +182,13 @@ namespace RimFront
                     // base. Reject here too, before that native preparation can occur.
                     harmony.Patch(shootCast, prefix: new HarmonyMethod(typeof(NativeManualAim), nameof(CeCastGuard)) { priority = Priority.First });
                     harmony.Patch(spawn, postfix: Hook(nameof(CeSpawn)));
-                    harmony.Patch(shift, prefix: Hook(nameof(CeShift)));
+                    harmony.Patch(shift, prefix: Hook(nameof(CeShift)), transpiler: Hook(nameof(CeSourceCenters)));
+                    MethodInfo rotation = AccessTools.Method(CeVerb, "ShotRotation", new[] { typeof(Vector3) });
+                    MethodInfo height = AccessTools.PropertyGetter(CeVerb, "ShotHeight");
+                    if (rotation?.ReturnType != typeof(float) || height?.ReturnType != typeof(float))
+                        throw new NotSupportedException("CE shot source contract");
+                    harmony.Patch(rotation, transpiler: Hook(nameof(CeSourceCenters)));
+                    harmony.Patch(height, prefix: Hook(nameof(CeSourceHeight)));
                     Type projectile = AccessTools.TypeByName("CombatExtended.ProjectileCE");
                     Type utility = AccessTools.TypeByName("CombatExtended.CE_Utility");
                     ceIntended = projectile == null ? null : AccessTools.Field(projectile, "intendedTarget");
@@ -277,9 +285,11 @@ namespace RimFront
             if (!Matches(__instance)) return true;
             __result = current.Target.Point.y; return false;
         }
-        static bool CeAngle(Verb __instance, ref float __result)
+        static bool CeAngle(Verb __instance, ref Vector3 __0, ref float __result)
         {
-            if (!Matches(__instance) || current.Target.HitThing || current.Target.HitSurface) return true;
+            if (!Matches(__instance)) return true;
+            __0 = CeSource(__0, __instance);
+            if (current.Target.HitThing || current.Target.HitSurface) return true;
             // Empty air has no impact point for automatic gravity compensation.
             // CE adds its normal sway, recoil and pellet spread after this base angle.
             __result = AirAngle(current.Pitch); return false;
@@ -294,16 +304,19 @@ namespace RimFront
             if (!Matches(__instance)) return true;
             __result = false; return false;
         }
-        sealed class CastState { internal LocalTargetInfo Target; internal Aim Context; }
+        sealed class CastState { internal LocalTargetInfo Target; internal Aim Context; internal Vector3 Source; internal bool HasSource; }
         static void CeBeginCast(Verb __instance, out CastState __state)
         {
             __state = null;
             if (!TryGetTarget(__instance, out LocalTargetInfo target)) return;
             __state = PushTarget(__instance, target);
+            current.ShotSource = NativeShotSource.Sample(current.Pawn, current.Target.Point);
+            current.HasShotSource = NativeEffectMath.IsFinite(current.ShotSource);
         }
         static CastState PushTarget(Verb verb, LocalTargetInfo target)
         {
-            var state = new CastState { Target = (LocalTargetInfo)VerbTarget.GetValue(verb), Context = current };
+            var state = new CastState { Target = (LocalTargetInfo)VerbTarget.GetValue(verb), Context = current,
+                Source = current.ShotSource, HasSource = current.HasShotSource };
             VerbTarget.SetValue(verb, target);
             return state;
         }
@@ -311,7 +324,11 @@ namespace RimFront
         {
             // A native reload/job replacement can reset the verb inside this scope.
             // Never resurrect its previous target after that ownership was cleared.
-            if (__state != null && ReferenceEquals(current, __state.Context)) VerbTarget.SetValue(__instance, __state.Target);
+            if (__state != null && ReferenceEquals(current, __state.Context))
+            {
+                VerbTarget.SetValue(__instance, __state.Target);
+                current.ShotSource = __state.Source; current.HasShotSource = __state.HasSource;
+            }
             return __exception;
         }
         static void CeShift(Verb __instance, object __0, ref Vector3 __1, bool __3)
@@ -323,13 +340,37 @@ namespace RimFront
             ceReportTarget.SetValue(__0, new LocalTargetInfo(point.ToIntVec3()));
             if (!__3)
             {
-                Vector3 source = GenThing.TrueCenter(__instance.Caster);
+                Vector3 source = CeSource(GenThing.TrueCenter(__instance.Caster), __instance);
                 float range = HorizontalDistance(source, point);
                 ceReportDistance.SetValue(__0, range);
                 if ((int)ceShotsFired.GetValue(__instance) > 0 && current.LastShotRange > .0001f)
                     ceEstimatedDistance.SetValue(__instance, RebaseRangeEstimate((float)ceEstimatedDistance.GetValue(__instance), current.LastShotRange, range));
                 current.LastShotRange = range;
             }
+        }
+        static Vector3 CeSource(Vector3 native, Verb verb)
+            => Matches(verb) && current.HasShotSource ? current.ShotSource : native;
+        static bool CeSourceHeight(Verb __instance, ref float __result)
+        {
+            if (!Matches(__instance) || !current.HasShotSource) return true;
+            __result = current.ShotSource.y; return false;
+        }
+        // Replace only the source reads in ShiftTarget and ShotRotation. Native
+        // estimation, sway, recoil, pellet variation and barrel offsets still run.
+        static IEnumerable<CodeInstruction> CeSourceCenters(IEnumerable<CodeInstruction> instructions)
+        {
+            var result = new List<CodeInstruction>(); int matches = 0;
+            MethodInfo center = AccessTools.Method(typeof(GenThing), nameof(GenThing.TrueCenter), new[] { typeof(Thing) });
+            foreach (CodeInstruction instruction in instructions)
+            {
+                result.Add(instruction);
+                if (!Equals(instruction.operand, center)) continue;
+                result.Add(new CodeInstruction(OpCodes.Ldarg_0));
+                result.Add(new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(NativeManualAim), nameof(CeSource))));
+                matches++;
+            }
+            if (matches != 1) throw new NotSupportedException("CE shot source IL contract");
+            return result;
         }
         static void CeSpawn(Verb __instance, Thing __result)
         {

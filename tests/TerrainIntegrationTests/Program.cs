@@ -95,6 +95,13 @@ static class Program
         Require(!NativeAimTargeting.TrySelect(pawn,0,-.25f,10,out var shortHit) || shortHit.Distance<=10,"Exterior aiming bypassed native weapon range");
         map.Fog.Clear();
         Require(NativeAimTargeting.TrySelect(pawn,0,-.25f,60,out var known) && known.HitThing && known.Target.Thing!=null,"Revealed rock lost ordinary Thing selection");
+        var emptyMap=new Map(); pawn.Map=emptyMap; pawn.Position=new(100,0,100);
+        var continuousEye=new Vector3(100.99f,1.55f,100.99f);
+        Require(NativeAimTargeting.TrySelectFrom(pawn,continuousEye,(float)Math.PI/2,0,.6f,false,out var clearance)
+            && Math.Abs(clearance.Distance-.6f)<.0001f,"Continuous muzzle clearance was shortened by cell-centre range rounding");
+        Require(!NativeAimTargeting.TrySelectFrom(pawn,continuousEye,(float)Math.PI/2,0,.6f,true,out var constrained)
+            || NativeAimTargeting.CellWithinRange(100,100,constrained.Point.ToIntVec3().x,constrained.Point.ToIntVec3().z,.6f),
+            "Cell-constrained callers lost native cell range validation");
     }
     static void NearestAdmission()
     {

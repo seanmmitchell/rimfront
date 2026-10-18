@@ -8,6 +8,7 @@ namespace RimFront
         public int extraViewRange = 0;
         public bool analogMovement = true;
         public bool animatePawns = true;
+        public bool spritePawns = false;
         public bool shieldHaze = true;
         public bool shieldImpacts = true;
         public bool shieldImpactsInColony = false;
@@ -25,6 +26,7 @@ namespace RimFront
             extraViewRange = ViewRange.Step(extraViewRange);
             Scribe_Values.Look(ref analogMovement, "analogMovement", true);
             Scribe_Values.Look(ref animatePawns, "animatePawns", true);
+            Scribe_Values.Look(ref spritePawns, "spritePawns", false);
             Scribe_Values.Look(ref shieldHaze, "shieldHaze", true);
             Scribe_Values.Look(ref shieldImpacts, "shieldImpacts", true);
             Scribe_Values.Look(ref shieldImpactsInColony, "shieldImpactsInColony", false);
@@ -53,7 +55,10 @@ namespace RimFront
                 "Continuous movement with swept collisions and CE position integration. Disable to use native path movement.");
             listing.Label("Changes apply the next time you enter RimFront. An unsupported CE adapter automatically uses native movement.");
             listing.Gap();
-            listing.CheckboxLabeled("Animate nearby pawns", ref animatePawns,
+            listing.Label("Character rendering");
+            listing.CheckboxLabeled("Use viewpoint-based 2D characters", ref spritePawns,
+                "Replace nearby 3D characters with upright native sprites. Front, side and back artwork follows your viewpoint. Applies immediately; disable to restore 3D models. First-person hands stay 3D. Unavailable artwork falls back to 3D.");
+            listing.CheckboxLabeled("Animate nearby 3D pawns", ref animatePawns,
                 "Animate limbs and clothing on nearby pawns. Disable to reduce rendering work while keeping their dressed models visible.");
             listing.CheckboxLabeled("Pawn status indicators", ref pawnIndicators,
                 "Label visible colonists, friends, guests, prisoners and hostiles. Prison breaks flash orange/red. You can deliberately fire at any faction.");

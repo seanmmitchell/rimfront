@@ -99,12 +99,19 @@ internal static partial class Program
         {
             object aim = Activator.CreateInstance(aimType, true); state.SetValue(null, aim);
             verbTarget.SetValue(scopeVerb, cellTarget);
+            Set(aim, "ShotSource", V(1, 2, 3)); Set(aim, "HasShotSource", false);
             object outer = pushTarget.Invoke(null, new[] { scopeVerb, selected });
+            Set(aim, "ShotSource", V(4, 5, 6)); Set(aim, "HasShotSource", true);
             object inner = pushTarget.Invoke(null, new[] { scopeVerb, nested });
+            Set(aim, "ShotSource", V(7, 8, 9));
             popTarget.Invoke(null, new[] { scopeVerb, inner, null });
+            Check(Close(Coordinates(aimType.GetField("ShotSource", Flags).GetValue(aim)), new[] {4f,5f,6f})
+                && (bool)aimType.GetField("HasShotSource", Flags).GetValue(aim), "nested shot restores outer source sample for native pellet/XP callbacks");
             Check(Equals(verbTarget.GetValue(scopeVerb), selected), "returning from nested CE shot preserves the selected Thing for native warmup XP and battle logging");
             var failure = new InvalidOperationException("native warmup sentinel");
             object returned = popTarget.Invoke(null, new object[] { scopeVerb, outer, failure });
+            Check(Close(Coordinates(aimType.GetField("ShotSource", Flags).GetValue(aim)), new[] {1f,2f,3f})
+                && !(bool)aimType.GetField("HasShotSource", Flags).GetValue(aim), "outer cast clears source sample even when native cast throws");
             Check(Equals(verbTarget.GetValue(scopeVerb), cellTarget) && ReferenceEquals(returned, failure), "warmup completion restores the original cell target and propagates native exceptions");
             verbTarget.SetValue(scopeVerb, selected);
             outer = pushTarget.Invoke(null, new[] { scopeVerb, nested });

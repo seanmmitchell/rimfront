@@ -49,3 +49,9 @@ Owned CE ballistic queries use floating-point cell traversal and rendered contac
 ## Version boundary
 
 One source tree builds separately for 1.6 (.NET Framework/Unity references) and 1.7 (.NET 10/Waylith compatibility references). Inspected 1.7 camera, mesh, shader and input APIs have real implementations. Signature/IL checks support narrowly scoped optional adapters; they do not certify Harmony coexistence with arbitrary mod lists. Refer to [compatibility](compatibility.md) and [performance](performance.md) for validation limits.
+
+## Native minimap
+
+The minimap submits the stock `MapDrawer`, `DynamicDrawManager`, designation/overlay, temporary thing, fleck, condition and weather draw paths to an owned orthographic camera/target. It does not call `MapUpdate`, tick the map or scan cells to invent substitute art. A scoped override supplies the native camera getters, zoom and view rectangle, and opens RimFront's flat-map/dynamic draw suppression only for this synchronous pass. The first-person camera and the camera driver's saved colony state are not moved or rewritten; scope and active render-target restoration run on exceptions.
+
+On 1.7, `MeshDrawSubmission.BeginCapture` collects only native minimap commands and the engine's `CameraTextureRenderer` renders them. The pass refuses to steal an existing capture. It avoids `Camera.Render`, which would also copy pending first-person submissions. On 1.6, managed Graphics draw wrappers retain their original geometry, materials, property blocks and instancing while routing map draws to the minimap camera on layer 31; explicit foreign cameras such as the pawn atlas keep their own destination. The disabled camera never renders automatically. Capture runs at 5 Hz with an immediate coverage refresh after travel; resources clear on control exit or map/pawn change. Live compatibility with custom graphics paths remains to be checked.

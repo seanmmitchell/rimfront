@@ -21,6 +21,7 @@ RimFront captures input each frame and consumes it on game ticks. Rendering, mes
 | Weather | 96 rain streaks and 64 snowflakes; reusable precipitation mesh updated at 20 Hz |
 | Crosshair query | 1,024 cells, 768 things, 65,536 triangle checks; 768-entry CPU geometry cache |
 | Pawn indicators | 24 labels, 512 retained candidates; up to 512 pawns scanned per render frame |
+| Minimap | One 96 × 96 texture; 9,216 cell samples and one existing bounded aim query every 200 ms; immediate refresh after travel would lose the minimum 20-tile surroundings. Up to 512 pawn candidates examined per refresh, 128 retained markers with visibility rechecked per repaint; no extra camera or full-map scan |
 
 Live pawns and door leaves update separately from static chunks. Shared family fallback models are created lazily outside the appearance refresh budget, so cold entry into a mixed-species scene can create several models in one frame. Geometry/color setters can cause full Waylith mesh uploads; incremental relighting still has a cost. Transparent shields add blending work. Dense blood and over-budget animation use simplified presentation.
 

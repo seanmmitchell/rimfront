@@ -94,6 +94,7 @@ namespace RimFront
 
         internal static void Stop()
         {
+            NativeMinimap.Dispose();
             if (pawn == null && camera == null) return;
             // Clear activity before restoring so Harmony immediately returns camera/UI ownership.
             pawn = null;
@@ -223,6 +224,7 @@ namespace RimFront
             if (current.type == EventType.KeyDown && current.keyCode == KeyCode.Escape) requestRelease = true;
             if (current.type != EventType.Repaint) return;
             NativeTargetIndicators.OnGUI(pawn);
+            NativeMinimap.OnGUI(pawn);
             if (Time.realtimeSinceStartup >= nextHudRefresh)
             {
                 nextHudRefresh = Time.realtimeSinceStartup + 0.1f;

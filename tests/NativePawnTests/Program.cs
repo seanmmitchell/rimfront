@@ -63,6 +63,7 @@ internal static partial class Program
             TestShotCadence(assembly);
             TestReloadContinuation(assembly);
             TestVegetation(assembly);
+            TestPawnSprites(assembly);
             if(args.Length==4){File.WriteAllText(args[3],JsonSerializer.Serialize(catalog));File.WriteAllText(Path.ChangeExtension(args[3],"objects.json"),JsonSerializer.Serialize(objectCatalog));File.WriteAllText(Path.ChangeExtension(args[3],"actions.json"),JsonSerializer.Serialize(actionCatalog));}
             Console.WriteLine($"PASS: {checks} native pawn/object model, appearance and animation checks against compiled helpers. No GPU or game session was started.");
             return 0;

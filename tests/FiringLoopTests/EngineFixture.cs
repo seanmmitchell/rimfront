@@ -26,6 +26,7 @@ public sealed class FiringWorld : IDisposable
     public bool DeferNextOrderedJob, HoldQueuedJobs;
     public bool RecycleNextOrderedJob, QueueRecycledJob;
     public Job RecycledJob;
+    public Job LastCreatedAttack;
     public int Shots, Reloads, ResetCount, ResumedForeignAttacks, AttackOrders;
     public int WarmupPresentOnReset;
     public readonly List<int> ShotTicks = new List<int>();
@@ -405,7 +406,7 @@ namespace RimFront
         {
             message = "simulated attack";
             if (p.World.InvalidAim || p.World.Ammo <= 0) return null;
-            return new Job { def = JobDefOf.AttackStatic, verbToUse = p.Verb, playerForced = true };
+            return p.World.LastCreatedAttack = new Job { def = JobDefOf.AttackStatic, verbToUse = p.Verb, playerForced = true };
         }
     }
     internal static class NativeBipods

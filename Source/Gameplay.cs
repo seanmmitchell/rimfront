@@ -12,6 +12,8 @@ namespace RimFront
         Pawn pawn;
         Map controlledMap;
         Job ownedJob;
+        Job recentOwnedAttack;
+        int recentOwnedAttackId;
         bool oldFireAtWill;
         InputCommand input;
         bool pendingReload, pendingFire, pendingBrace, pendingBipod;
@@ -65,6 +67,8 @@ namespace RimFront
             Active?.Release("Control transferred.");
             pawn = candidate;
             controlledMap = candidate.Map;
+            recentOwnedAttack = null;
+            recentOwnedAttackId = 0;
             oldFireAtWill = candidate.drafter.FireAtWill;
             input = null;
             pendingBipod = pendingBrace = pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
@@ -115,6 +119,8 @@ namespace RimFront
                 pawn = null;
                 controlledMap = null;
                 ownedJob = null;
+                recentOwnedAttack = null;
+                recentOwnedAttackId = 0;
                 input = null;
                 pendingBipod = pendingBrace = pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
                 suppressNextFireEdge = reportedStaleFire = false;
@@ -220,6 +226,20 @@ namespace RimFront
             attackInitialShotTick = -1;
         }
 
+        bool DiscardResumedOwnedAttack()
+        {
+            Job current = pawn?.CurJob;
+            if (current == null || current == ownedJob || current.def != JobDefOf.AttackStatic
+                || current != recentOwnedAttack || current.loadID != recentOwnedAttackId) return false;
+            // Native job selection can replay an earlier attack after a reload or
+            // after successful completion without using StartJob's resume flag.
+            // Its manual aim was released at cleanup; discard only this exact job.
+            ownedJob = current;
+            StopOwnedJob("replayed owned attack", startNewJob: false);
+            firingTrace.Event(pawn, "stale-attack-discarded", "Native resumed an earlier owned attack.");
+            return true;
+        }
+
         public override void GameComponentUpdate()
         {
             // Deferred engine window changes can land after FPS control has already ended.
@@ -282,10 +302,13 @@ namespace RimFront
 
         public override void GameComponentTick()
         {
-            if (pawn == null || !CanControl(pawn) || input == null) return;
+            if (pawn == null || !CanControl(pawn)) return;
             try
             {
                 firingTrace.Observe(pawn, ownedJob);
+                // Native work can resume after a slow frame has cleared input.
+                if (DiscardResumedOwnedAttack()) return;
+                if (input == null) return;
                 double inputAge = (DateTime.UtcNow - acceptedAt).TotalMilliseconds;
                 if (NativeTriggerPolicy.IsStaleInput(inputAge))
                 {
@@ -511,6 +534,7 @@ namespace RimFront
             Verb requestedVerb = job.verbToUse;
             int initialShot = requestedVerb?.LastShotTick ?? -1;
             ownedJob = job;
+            if (requestedAttack) { recentOwnedAttack = job; recentOwnedAttackId = issuedId; }
             ResetAttackProgress();
             attackRequiresTriggerPress = job?.def == JobDefOf.AttackStatic && NativeFireModes.RequiresTriggerPress(actor);
             attackInitialShotTick = job?.verbToUse?.LastShotTick ?? -1;

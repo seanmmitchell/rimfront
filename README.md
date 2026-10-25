@@ -1,6 +1,6 @@
 # RimFront 0.6.3 test build
 
-The current source includes a manual-reload fix for deferred native attack orders, 66 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
+The current source includes native attack replay recovery after reloads and completed shots, 69 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 
@@ -65,6 +65,8 @@ Successful completed attacks preserve CE repeat-shot timing state. Interruptions
 Owned manual CE shots sample the displayed muzzle for each native cast, including the M60 heavy-weapon model. Source coordinates, height, range estimation and shot rotation use that same sample. A short rendered-geometry query clips the source before intervening cover; near targets or an incomplete query use the camera position. CE still supplies spread, recoil, pellet/barrel offsets, gravity, ammo and damage. Vanilla projectiles retain their existing adapter.
 
 Version 0.6.1 prevents a verified CE reload from suspending and replaying RimFront's old firing job. Reloads still run natively; subsequent fire uses current input and a fresh aim point. Automatic reload after the last round does not create a second Semi-auto or Burst trigger press. Foreign attack orders keep their usual ownership rules.
+
+Native job selection can also restart a previously owned attack after its job has completed, including after a reload. RimFront discards that exact stale job and keeps the 3D view; a new shot still requires the normal trigger input. Distinct external attack orders still return control to RimWorld.
 
 Owned CE ballistic contacts use displayed pawn and world geometry while retaining native impact handlers. Stock straight vanilla bullets have height-aware contact filtering, exact aim endpoints and close/endpoint solid-obstacle checks, with native accuracy preserved. **Explosive, arcing and custom vanilla projectiles retain their native trajectory** and report “native 2D trajectory.” CE beams and unsupported custom trajectories retain their documented native paths; precise vertical contact is not promised for every weapon.
 

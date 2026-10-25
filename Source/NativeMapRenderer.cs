@@ -85,7 +85,10 @@ namespace RimFront
         {
             if (renderCamera == null)
             {
-                var owner = new GameObject("RimFront native minimap camera") { hideFlags = HideFlags.HideAndDontSave };
+                var owner = new GameObject("RimFront native minimap camera");
+#if !RW17
+                owner.hideFlags = HideFlags.HideAndDontSave;
+#endif
                 renderCamera = owner.AddComponent<Camera>();
                 renderCamera.enabled = false;
                 renderCamera.orthographic = true;

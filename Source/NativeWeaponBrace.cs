@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Collections.Generic;
 using HarmonyLib;
 using Verse;
 using Verse.AI;
@@ -14,11 +15,44 @@ namespace RimFront
         static readonly FieldInfo Deployed = Bipod?.GetField("IsSetUpRn");
         static readonly MethodInfo Deploy = Bipod?.GetMethod("DeployUpBipod", Type.EmptyTypes);
         static readonly MethodInfo Close = Bipod?.GetMethod("CloseBipod", Type.EmptyTypes);
-        static Pawn owner;
-        static ThingWithComps weapon;
-        static object comp;
-        static Job setup;
-        static bool requested, manual, patched;
+        internal sealed class State : IExposable
+        {
+            public State() { }
+            internal Pawn owner;
+            internal ThingWithComps weapon;
+            internal object comp;
+            internal Job setup;
+            int savedSetupId = -1;
+            internal bool requested, manual;
+            public void ExposeData()
+            {
+                Scribe_References.Look(ref owner, "owner"); Scribe_References.Look(ref weapon, "weapon");
+                if (Scribe.mode == LoadSaveMode.Saving) savedSetupId = setup?.loadID ?? -1;
+                Scribe_Values.Look(ref savedSetupId, "setupJob", -1);
+                Scribe_Values.Look(ref requested, "requested"); Scribe_Values.Look(ref manual, "manual");
+                if (Scribe.mode == LoadSaveMode.PostLoadInit)
+                { comp = FindComp(weapon); setup = owner?.CurJob?.loadID == savedSetupId ? owner.CurJob : null; }
+            }
+        }
+        static readonly Dictionary<Pawn, State> states = new Dictionary<Pawn, State>();
+        static readonly State empty = new State();
+        static State For(Pawn pawn, bool create = false)
+        {
+            if (pawn == null) return empty;
+            if (!states.TryGetValue(pawn, out var state) && create) states[pawn] = state = new State { owner = pawn };
+            return state ?? empty;
+        }
+        static State Current => For(RimFrontGame.Active?.ControlledPawn, true);
+        static Pawn owner { get => Current.owner; set => Current.owner = value; }
+        static ThingWithComps weapon { get => Current.weapon; set => Current.weapon = value; }
+        static object comp { get => Current.comp; set => Current.comp = value; }
+        static Job setup { get => Current.setup; set => Current.setup = value; }
+        static bool requested { get => Current.requested; set => Current.requested = value; }
+        static bool manual { get => Current.manual; set => Current.manual = value; }
+        static bool patched;
+        internal static State Capture(Pawn pawn) => For(pawn, true);
+        internal static void Restore(Pawn pawn, State state) { if (pawn != null) states[pawn] = state ?? new State { owner = pawn }; }
+        internal static void ClearAll() => states.Clear();
 
         internal static bool CanBrace(string name, bool ranged)
         {
@@ -28,9 +62,13 @@ namespace RimFront
                 || kind == NativeWeapons.WeaponKind.Smg || kind == NativeWeapons.WeaponKind.Sniper
                 || kind == NativeWeapons.WeaponKind.Heavy || kind == NativeWeapons.WeaponKind.Launcher;
         }
-        internal static bool IsMounted(Pawn pawn) => requested && pawn == owner && weapon == pawn?.equipment?.Primary
-            && (comp == null || (Deployed?.FieldType == typeof(bool) && (bool)Deployed.GetValue(comp)));
-        internal static string Status(Pawn pawn) => pawn == owner && requested
+        internal static bool IsMounted(Pawn pawn)
+        {
+            State s = For(pawn);
+            return s.requested && pawn == s.owner && s.weapon == pawn?.equipment?.Primary
+                && (s.comp == null || (Deployed?.FieldType == typeof(bool) && (bool)Deployed.GetValue(s.comp)));
+        }
+        internal static string Status(Pawn pawn) => pawn != null && For(pawn).requested
             ? (IsMounted(pawn) ? "Mounted / V fold" : "Bipod setup / V cancel") : "";
 
         internal static bool HasBipod(Pawn pawn) => IsMounted(pawn) || FindComp(pawn?.equipment?.Primary) != null;
@@ -58,10 +96,13 @@ namespace RimFront
         // equipped component and possession session; other pawns keep their native rules.
         static bool ShouldSetUp(object __instance, ref bool __result)
         {
-            if (!manual || !ReferenceEquals(comp, __instance) || owner != NativeView.ControlledPawn
-                || !NativeView.Active || owner?.equipment?.Primary != weapon) return true;
-            __result = requested && !IsMounted(owner);
-            return false;
+            foreach (State state in states.Values)
+            {
+                if (!state.manual || !ReferenceEquals(state.comp, __instance)
+                    || RimFrontGame.For(state.owner) == null || state.owner?.equipment?.Primary != state.weapon) continue;
+                __result = state.requested && !IsMounted(state.owner); return false;
+            }
+            return true;
         }
         internal static bool Toggle(Pawn pawn, out string message)
         {
@@ -145,7 +186,7 @@ namespace RimFront
         {
             try { Fold(); }
             catch (Exception e) { Log.Warning("[RimFront] Bipod cleanup: " + e.GetBaseException().Message); }
-            finally { owner = null; weapon = null; comp = null; setup = null; requested = manual = false; }
+            finally { Pawn old = owner; owner = null; weapon = null; comp = null; setup = null; requested = manual = false; if (old != null) states.Remove(old); }
         }
     }
 }

@@ -1,0 +1,59 @@
+{
+  "rimWorld": "1.6",
+  "contracts": [
+    "pinned Multiplayer SHA256",
+    "trusted command sender field",
+    "Multiplayer.Client.AsyncTimeComp execution scope",
+    "Multiplayer.Client.AsyncTimeComp uses native sender",
+    "Multiplayer.Client.AsyncTime.AsyncWorldTimeComp execution scope",
+    "Multiplayer.Client.AsyncTime.AsyncWorldTimeComp uses native sender",
+    "local session identity",
+    "shared-colony guard",
+    "reflection registration overload",
+    "IsHosting",
+    "InInterface",
+    "IsInMultiplayer",
+    "SetContext",
+    "SetHostOnly",
+    "native pause voting"
+  ],
+  "artifacts": [
+    {
+      "name": "Multiplayer.dll",
+      "assemblyVersion": "0.11.5.0",
+      "moduleVersionId": "34169ac4-d99e-463c-b48c-0af3be9783f8",
+      "targetFramework": ".NETFramework,Version=v4.8",
+      "runtimeReferences": [
+        "mscorlib",
+        "UnityEngine.CoreModule",
+        "UnityEngine.TextRenderingModule",
+        "UnityEngine.IMGUIModule",
+        "UnityEngine.AudioModule",
+        "UnityEngine.InputLegacyModule"
+      ],
+      "sha256": "28d2cda41d78497970565748be0e4b7e23f6ece03310a304359a840ab38faad1"
+    },
+    {
+      "name": "MultiplayerCommon.dll",
+      "assemblyVersion": "1.0.0.0",
+      "moduleVersionId": "1c9e28b4-489a-4d53-b564-86e4c0598dde",
+      "targetFramework": ".NETFramework,Version=v4.8",
+      "runtimeReferences": [
+        "mscorlib",
+        "UnityEngine.CoreModule"
+      ],
+      "sha256": "aeb57fae464bdf324e67974a7c418abf796c36d2249f3d8b548eb330efd050e4"
+    },
+    {
+      "name": "0MultiplayerAPI.dll",
+      "assemblyVersion": "0.6.0.0",
+      "moduleVersionId": "c74c9bf7-f68c-4e12-ac6e-e2a0c2bd9227",
+      "targetFramework": ".NETFramework,Version=v4.7.2",
+      "runtimeReferences": [
+        "mscorlib"
+      ],
+      "sha256": "863766df5fd24a31eda1e59947f026abd5b8dc99cb0d7bca6a8a3d356b65ad8d"
+    }
+  ],
+  "liveValidated": false
+}

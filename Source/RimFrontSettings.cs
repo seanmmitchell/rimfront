@@ -48,10 +48,38 @@ namespace RimFront
         }
         internal void Draw(Rect rect)
         {
+            if (!RimFrontMultiplayer.InSession) { DrawContents(rect); return; }
+            bool oldAnalog = analogMovement, oldFire = movingFire, oldReload = movingReload;
+            int oldRange = extraViewRange;
+            try
+            {
+                analogMovement = RimFrontMultiplayer.RulesAnalog;
+                movingFire = RimFrontMultiplayer.RulesMovingFire;
+                movingReload = RimFrontMultiplayer.RulesMovingReload;
+                extraViewRange = RimFrontMultiplayer.ViewStep;
+                DrawContents(rect);
+                if (MultiplayerBridge.Hosting && (analogMovement != RimFrontMultiplayer.RulesAnalog
+                    || movingFire != RimFrontMultiplayer.RulesMovingFire || movingReload != RimFrontMultiplayer.RulesMovingReload
+                    || extraViewRange != RimFrontMultiplayer.ViewStep))
+                    RimFrontMultiplayer.SetRules(analogMovement, movingFire, movingReload, extraViewRange);
+            }
+            finally
+            {
+                analogMovement = oldAnalog; movingFire = oldFire; movingReload = oldReload; extraViewRange = oldRange;
+            }
+        }
+        void DrawContents(Rect rect)
+        {
             Rect content = new Rect(0, 0, Mathf.Max(1f, rect.width - 20f), contentHeight);
             Widgets.BeginScrollView(rect, ref scrollPosition, content);
             Listing_Standard listing = new Listing_Standard { maxOneColumn = true };
             listing.Begin(content);
+            bool previousEnabled = GUI.enabled;
+            if (RimFrontMultiplayer.InSession)
+            {
+                listing.Label("Multiplayer gameplay rules are controlled by the host. Graphics and diagnostics are local.");
+                GUI.enabled = previousEnabled && MultiplayerBridge.Hosting;
+            }
             listing.Label("View range");
             extraViewRange = ViewRange.Step(extraViewRange);
             listing.Label("Additional view range: " + (extraViewRange * 50) + "% (" + ViewRange.DistanceFor(extraViewRange) + " tiles)");
@@ -68,6 +96,7 @@ namespace RimFront
             listing.CheckboxLabeled("Move while reloading (default)", ref movingReload,
                 "Walk during a supported reload of your equipped weapon. Native reload timing and ammunition remain unchanged. Disable to stand still during reloads. Applies immediately.");
             listing.Label("Hold Left Ctrl to crouch behind cover. Crouching also halves walking speed.");
+            GUI.enabled = previousEnabled;
             listing.Gap();
             listing.Label("Character rendering");
             listing.CheckboxLabeled("Show minimap", ref minimap,

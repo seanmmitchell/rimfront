@@ -106,7 +106,7 @@ try {
             @{ Name = 'bipod-toggle-ignored'; Scenario = 'bipod-toggle-cancels-setup';
                 Anchor = 'NativeBipods.TryToggle(pawn, out message)'; Replacement = 'false /* mutation: ignore G */' },
             @{ Name = 'stale-release-latch'; Scenario = 'stale-auto-recovery';
-                Anchor = 'suppressNextFireEdge = true;'; Replacement = 'requireFireRelease = true;' },
+                Anchor = 'suppressNextFireEdge = true; // Single-player stale recovery.'; Replacement = 'requireFireRelease = true; // Historical stale latch.' },
             @{ Name = 'reload-resumes-stale-attack'; Scenario = 'reload-resume-ownership';
                 Anchor = 'resumeCurrent = false;'; Replacement = 'resumeCurrent = true;' },
             @{ Name = 'successful-cleanup-resets-repeat'; Scenario = 'successful-repeat-cycle';

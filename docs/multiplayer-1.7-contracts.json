@@ -1,0 +1,84 @@
+{
+  "rimWorld": "1.7",
+  "contracts": [
+    "pinned Multiplayer SHA256",
+    "trusted command sender field",
+    "Multiplayer.Client.AsyncTimeComp execution scope",
+    "Multiplayer.Client.AsyncTimeComp uses native sender",
+    "Multiplayer.Client.AsyncTime.AsyncWorldTimeComp execution scope",
+    "Multiplayer.Client.AsyncTime.AsyncWorldTimeComp uses native sender",
+    "local session identity",
+    "shared-colony guard",
+    "reflection registration overload",
+    "IsHosting",
+    "InInterface",
+    "IsInMultiplayer",
+    "SetContext",
+    "SetHostOnly",
+    "native pause voting"
+  ],
+  "artifacts": [
+    {
+      "name": "Multiplayer.dll",
+      "assemblyVersion": "0.11.5.0",
+      "moduleVersionId": "1359f60a-cc52-4130-bc1b-cf1e8adf26d8",
+      "targetFramework": ".NETCoreApp,Version=v10.0",
+      "runtimeReferences": [
+        "UnityStubs"
+      ],
+      "sha256": "2c3403fee45cb142aee6b212e04a8c204dc4af5aee99a632d787b51ada0018ce"
+    },
+    {
+      "name": "MultiplayerCommon.dll",
+      "assemblyVersion": "1.0.0.0",
+      "moduleVersionId": "e4cb3309-7ac6-41bb-a662-57c1fc376360",
+      "targetFramework": ".NETCoreApp,Version=v10.0",
+      "runtimeReferences": [
+        "UnityStubs"
+      ],
+      "sha256": "0c3c5718d2c1cd16e716b5df63590179fb4d33d99eb3da2c88272388f184ccb4"
+    },
+    {
+      "name": "0MultiplayerAPI.dll",
+      "assemblyVersion": "0.6.0.0",
+      "moduleVersionId": "3e93eaaa-c92a-4421-a5b3-cd683b85da7b",
+      "targetFramework": ".NETCoreApp,Version=v10.0",
+      "runtimeReferences": [],
+      "sha256": "815e5a370c6606ded09df2337f932303da75ce439431ff4d48c02a5a12a1cf2a"
+    },
+    {
+      "name": "CombatExtended.dll",
+      "assemblyVersion": "0.0.0.0",
+      "moduleVersionId": "0f5031c2-39d4-4ea6-a7ee-96aea5c283eb",
+      "targetFramework": null,
+      "runtimeReferences": [
+        "mscorlib",
+        "UnityEngine.CoreModule",
+        "UnityEngine.TextRenderingModule",
+        "UnityEngine.IMGUIModule",
+        "UnityEngine.UI",
+        "UnityEngine.InputLegacyModule"
+      ],
+      "sha256": "3acb7de1f6dec318d04cf99df0d9e05014647462cd17ea7e067b4221e7d4d506"
+    },
+    {
+      "name": "0Harmony.dll",
+      "assemblyVersion": "3.0.0.0",
+      "moduleVersionId": "f89a6d42-3950-4658-a805-68a32790beea",
+      "targetFramework": ".NETCoreApp,Version=v10.0",
+      "runtimeReferences": [],
+      "sha256": "c8ef7856b2be3cf24b345c9b5c2f197f68fcf92649635064fce7b3ccc8f77cb0"
+    },
+    {
+      "name": "Assembly-CSharp.dll",
+      "assemblyVersion": "1.7.9790.38077",
+      "moduleVersionId": "d368493b-52bd-4740-bc75-07c1b0386895",
+      "targetFramework": ".NETCoreApp,Version=v10.0",
+      "runtimeReferences": [
+        "UnityStubs"
+      ],
+      "sha256": "0be7a7ea4b3111d4430f45b36c234a5e43287880b0514b23915f2ef9a0629e16"
+    }
+  ],
+  "liveValidated": false
+}

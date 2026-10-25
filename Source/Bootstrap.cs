@@ -31,18 +31,26 @@ namespace RimFront
             if (!RimFrontGame.CanControl(__instance)) yield break;
             RimFrontGame session = Current.Game?.GetComponent<RimFrontGame>();
             if (session == null) yield break;
-            bool controlled = session.Controls(__instance);
-            yield return new Command_Action
+            RimFrontGame network = RimFrontMultiplayer.InSession ? RimFrontMultiplayer.Controller(__instance) : null;
+            bool controlled = RimFrontMultiplayer.InSession ? network?.Lease.Owner == MultiplayerBridge.LocalPlayer : session.Controls(__instance);
+            var command = new Command_Action
             {
                 defaultLabel = controlled ? "Return to colony view" : "Play in RimFront",
                 defaultDesc = "Enter native first-person 3D inside RimWorld. WASD moves; mouse looks; left mouse fires; R reloads. Escape returns to colony view. Combat and movement use the game's own rules.",
                 icon = TexCommand.Attack,
                 action = () =>
                 {
-                    if (controlled) session.Release("Control released in RimWorld.");
+                    if (controlled && network != null) RimFrontMultiplayer.RequestRelease(network);
+                    else if (controlled) session.Release("Control released in RimWorld.");
                     else session.Control(__instance);
                 }
             };
+            if (RimFrontMultiplayer.InSession)
+            {
+                if (!RimFrontMultiplayer.CanEnter(out string reason)) command.Disable(reason);
+                else if (network != null && !controlled) command.Disable("Controlled by another player.");
+            }
+            yield return command;
         }
     }
 }

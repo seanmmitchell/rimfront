@@ -1,6 +1,6 @@
 # RimFront 0.6.3 test build
 
-The current source includes a manual-reload fix for deferred native attack orders, 66 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
+The current source includes native attack replay recovery after reloads and completed shots, 69 production-controller firing scenarios, and automatic recent-job diagnostics on unexpected exits. Live CE confirmation is pending; the latest published release linked below remains 0.6.2.
 
 Play a drafted RimWorld colonist in first person, rendered inside the game's own engine. RimFront targets **RimWorld 1.6 and 1.7**, requires **Harmony**, and integrates with an optional, branch-compatible **Combat Extended** installation. It uses original low-polygon models and has no MW2 dependency.
 
@@ -25,7 +25,7 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 | Space | Pause/resume |
 | Escape | Return to colony view |
 
-The entry click does not fire. The HUD shows health, weapon, ammunition, fire mode, movement mode, FPS estimate and rendering counters. Focus loss, a blocking dialog, loss of pawn eligibility, a map change or an incompatible external job releases control. Exit restores camera, cursor, subcamera, background-execution and fire-at-will settings. Possession is not saved. A Windows safeguard preserves existing game-window icons around transitions; its live behavior still needs verification.
+The entry click does not fire. The HUD shows health, weapon, ammunition, fire mode, movement mode, FPS estimate and rendering counters. Focus loss, a blocking dialog, loss of pawn eligibility, a map change or an incompatible external job releases control. Exit restores camera, cursor, subcamera, background-execution and fire-at-will settings. Single-player possession is not saved. Multiplayer snapshots retain simulation state for join/resync/replay; reopened live sessions return to colony view. A Windows safeguard preserves existing game-window icons around transitions; its live behavior still needs verification.
 
 The top-right minimap shows a cached north-up view using the installed native terrain, buildings, vegetation and item art. White marks you and your facing direction; gold marks the crosshair aim point. Nearby pawns use relationship-colored dots with fog and line-of-sight checks. The image normally includes 25 tiles in every direction and expands toward distant aim with four tiles of context. Shooting retains its native range and visibility limits.
 
@@ -65,6 +65,8 @@ Successful completed attacks preserve CE repeat-shot timing state. Interruptions
 Owned manual CE shots sample the displayed muzzle for each native cast, including the M60 heavy-weapon model. Source coordinates, height, range estimation and shot rotation use that same sample. A short rendered-geometry query clips the source before intervening cover; near targets or an incomplete query use the camera position. CE still supplies spread, recoil, pellet/barrel offsets, gravity, ammo and damage. Vanilla projectiles retain their existing adapter.
 
 Version 0.6.1 prevents a verified CE reload from suspending and replaying RimFront's old firing job. Reloads still run natively; subsequent fire uses current input and a fresh aim point. Automatic reload after the last round does not create a second Semi-auto or Burst trigger press. Foreign attack orders keep their usual ownership rules.
+
+Native job selection can also restart a previously owned attack after its job has completed, including after a reload. RimFront discards that exact stale job and keeps the 3D view; a new shot still requires the normal trigger input. Distinct external attack orders still return control to RimWorld.
 
 Owned CE ballistic contacts use displayed pawn and world geometry while retaining native impact handlers. Stock straight vanilla bullets have height-aware contact filtering, exact aim endpoints and close/endpoint solid-obstacle checks, with native accuracy preserved. **Explosive, arcing and custom vanilla projectiles retain their native trajectory** and report “native 2D trajectory.” CE beams and unsupported custom trajectories retain their documented native paths; precise vertical contact is not promised for every weapon.
 
@@ -134,7 +136,7 @@ The [firing-loop suite](https://github.com/seanmmitchell/rimfront/blob/main/test
 
 For release preparation, use `./scripts/verify-release.ps1` with the same `-Dotnet`, `-RimWorld17Dir` and `-Harmony17Dir` arguments. It builds both versions, runs all suites including firing-loop mutation checks, and only then packages. Calling `package.ps1` alone only creates archives; it does not verify behavior.
 
-See [architecture](docs/architecture.md) for implementation boundaries, [performance](docs/performance.md) for budgets and live measurement, and [smoke tests](docs/smoke-tests.md) for release checks. Multiplayer, concurrent controllers, universal visual-mod compatibility and measured FPS improvements are not claimed.
+See [architecture](docs/architecture.md) for implementation boundaries, [performance](docs/performance.md) for budgets and live measurement, and [smoke tests](docs/smoke-tests.md) for release checks. Multiplayer integration is draft work with concurrent per-player controllers on pinned 1.6/1.7 Multiplayer builds; see [multiplayer setup and pending live verification](docs/multiplayer.md). A working 1.7 Multiplayer/CE combination is not yet established. Universal visual-mod compatibility and measured FPS improvements are not claimed.
 
 ## Contributing and CI
 

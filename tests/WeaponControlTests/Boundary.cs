@@ -76,3 +76,15 @@ namespace RimFront
         { Queries++;if(constrainCellRange)throw new Exception("barrel clearance must not use weapon cell range");result=new(){Point=Contact};return Complete; }
     }
 }
+
+namespace RimFront
+{
+    internal sealed class RimFrontGame
+    {
+        internal static RimFrontGame For(Verse.Pawn pawn) => NativeView.Active && NativeView.ControlledPawn == pawn ? new RimFrontGame() : null;
+        internal static RimFrontGame Active => NativeView.Active ? new RimFrontGame() : null;
+        internal Verse.Pawn ControlledPawn => NativeView.ControlledPawn;
+    }
+    internal static class RimFrontMultiplayer { internal static bool InSession => false; }
+    internal static class SimulationGeometry { internal static UnityEngine.Vector3 Muzzle(Verse.Pawn p, UnityEngine.Vector3 t) => throw new Exception("SP boundary entered MP geometry"); }
+}

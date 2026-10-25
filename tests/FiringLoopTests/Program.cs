@@ -29,6 +29,9 @@ internal static class Program
             ("short-click-retains-first-shot", ShortClick),
             ("manual-reload-held-auto", ManualReload),
             ("reload-resume-ownership", LastRoundReload),
+            ("queued-stale-attack-after-reload", QueuedStaleAttackAfterReload),
+            ("queued-stale-attack-after-stale-input", QueuedStaleAttackWithoutInput),
+            ("completed-attack-restarts-from-native-queue", CompletedAttackRestarts),
             ("single-last-round-no-phantom", SingleLastRound),
             ("burst-last-round-no-phantom", BurstLastRound),
             ("empty-magazine-reload-recovery", EmptyMagazine),
@@ -423,6 +426,61 @@ internal static class Program
         Run(world, 50, held: false);
         Require(world.Shots == 1 && world.ResumedForeignAttacks == 0,
             "Native reload before the first shot lost the accepted short click or replayed an unowned job.");
+    }
+
+    static void QueuedStaleAttackAfterReload()
+    {
+        using var world = Loaded("Single");
+        world.Ammo = 2; world.MagazineSize = 6; world.Reserve = 12;
+        world.WarmupTicks = 12;
+        world.Frame(held: true); world.Tick();
+        var oldAttack = world.Pawn.CurJob;
+        Require(oldAttack?.def == RimWorld.JobDefOf.AttackStatic, "Fixture did not start the owned attack.");
+        world.Frame(reload: true); world.Tick();
+        Require(world.Pawn.CurJob?.def.defName == "ReloadWeapon", "Manual reload did not replace the attack.");
+        // Model a native/CE queue path that replays the old job without the
+        // StartJob resume flag intercepted by RimFront's reload hook.
+        oldAttack.Suspended = true;
+        world.Pawn.jobs.jobQueue.EnqueueFirst(oldAttack);
+        for (int i = 0; i < 25; i++) { world.Tick(); world.Frame(); Healthy(world); }
+        Require(world.ResumedForeignAttacks == 1 && world.Shots == 0 && world.PendingResumptions == 0,
+            "A stale attack replayed after reload or remained in the native queue.");
+        world.Frame(held: true);
+        Until(world, () => world.Shots == 1, "A fresh click could not fire after discarding the stale attack.");
+    }
+
+    static void QueuedStaleAttackWithoutInput()
+    {
+        using var world = Loaded("Single");
+        world.Ammo = 2; world.MagazineSize = 6; world.Reserve = 12;
+        world.WarmupTicks = 12;
+        world.Frame(held: true); world.Tick();
+        var oldAttack = world.Pawn.CurJob;
+        world.Frame(reload: true); world.Tick();
+        Require(world.Pawn.CurJob?.def.defName == "ReloadWeapon", "Fixture did not enter native reload.");
+        oldAttack.Suspended = true;
+        world.Pawn.jobs.jobQueue.EnqueueFirst(oldAttack);
+        world.ExpireInput();
+        world.Tick(25);
+        Require(world.Active && world.ResumedForeignAttacks == 1 && world.Shots == 0
+            && world.PendingResumptions == 0 && world.Pawn.CurJob != oldAttack,
+            "Native replay survived because no fresh input frame arrived after reload.");
+    }
+
+    static void CompletedAttackRestarts()
+    {
+        using var world = Loaded("Single");
+        world.WarmupTicks = 4;
+        world.Frame(held: true); world.Tick();
+        var oldAttack = world.Pawn.CurJob;
+        Require(oldAttack?.def == RimWorld.JobDefOf.AttackStatic, "Fixture did not start an owned attack.");
+        world.Pawn.jobs.jobQueue.EnqueueFirst(oldAttack);
+        world.Frame();
+        for (int i = 0; i < 20; i++) { world.Tick(); world.Frame(); Healthy(world); }
+        Require(world.Shots == 1 && world.AttackOrders == 2 && world.PendingResumptions == 0,
+            "A completed attack restarted from the native queue, fired again, or released 3D control.");
+        world.Frame(held: true);
+        Until(world, () => world.Shots == 2, "A fresh click could not fire after a completed-job replay.");
     }
 
     static void StaleAuto()
@@ -832,8 +890,9 @@ internal static class Program
         world.Frame(held: true);
         if (shortClick) world.Frame();
         world.Tick();
-        Require(world.AttackOrders == 0 && world.Shots == 0,
-            "Deferred native acceptance unexpectedly started the attack synchronously.");
+        Require(world.AttackOrders == 0 && world.Shots == 0 && world.LastCreatedAttack != null
+            && !world.Pawn.jobs.jobQueue.Contains(world.LastCreatedAttack),
+            "Deferred native acceptance started or left its attack queued after ownership was dropped.");
         Healthy(world);
     }
 

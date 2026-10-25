@@ -29,9 +29,9 @@ namespace RimFront
         // reload's remaining shot cooldown. Native attack toils,
         // cleanup and CE must continue seeing the real busy state, even at rest.
         internal static bool PathBusy(bool busy, Pawn_PathFollower follower)
-            => busy && !(NativeView.ControlledPawn?.pather == follower
-                && (RimFrontGame.Active?.AllowsAttackMovement(NativeView.ControlledPawn.stances.curStance as Stance_Busy) == true
-                    || RimFrontGame.Active?.AllowsReloadMovement(NativeView.ControlledPawn.stances.curStance as Stance_Busy) == true));
+            => busy && !(RimFrontGame.For(follower) != null
+                && (RimFrontGame.For(follower)?.AllowsAttackMovement(RimFrontGame.For(follower).ControlledPawn.stances.curStance as Stance_Busy) == true
+                    || RimFrontGame.For(follower)?.AllowsReloadMovement(RimFrontGame.For(follower).ControlledPawn.stances.curStance as Stance_Busy) == true));
     }
 
     [HarmonyPatch(typeof(Pawn_PathFollower), "CostToPayThisTick")]
@@ -39,8 +39,8 @@ namespace RimFront
     {
         static void Postfix(Pawn_PathFollower __instance, ref float __result)
         {
-            RimFrontGame session = RimFrontGame.Active;
-            if (session != null && NativeView.ControlledPawn?.pather == __instance)
+            RimFrontGame session = RimFrontGame.For(__instance);
+            if (session != null && session.ControlledPawn?.pather == __instance)
                 __result *= session.MovementSpeedFactor;
         }
     }

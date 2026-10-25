@@ -27,6 +27,7 @@ namespace RimFront
             internal Thing Projectile;
             internal Pawn Pawn;
             internal Bounds Bounds;
+            internal List<KeyValuePair<Pawn, Bounds>> Pawns;
         }
 
         internal static bool Supported { get { Initialize(); return supported; } }
@@ -161,14 +162,14 @@ namespace RimFront
             if (!AnalogMovement.TryGetPosition(pawn, out Vector3 position)) return true;
             // Preserve CE's flight-time refinement and random lead error; replace only its
             // path-cell extrapolation with the possessed pawn's actual tick velocity.
-            __result = PredictPosition(position, AnalogMovement.Velocity, __0);
+            __result = PredictPosition(position, AnalogMovement.VelocityFor(pawn), __0);
             return false;
         }
 
         static bool MoveSpeedPrefix(Pawn __0, ref float __result)
         {
             if (!AnalogMovement.TryGetPosition(__0, out _)) return true;
-            __result = AnalogMovement.Velocity.magnitude;
+            __result = AnalogMovement.VelocityFor(__0).magnitude;
             return false;
         }
 
@@ -191,6 +192,18 @@ namespace RimFront
         {
             __state = scope;
             scope = new CollisionScope { Projectile = __instance };
+            if (RimFrontMultiplayer.InSession && boundsFor != null && __instance?.Map != null)
+            {
+                scope.Pawns = new List<KeyValuePair<Pawn, Bounds>>();
+                foreach (var controller in RimFrontMultiplayer.State.Controllers)
+                {
+                    Pawn candidate = controller.ControlledPawn;
+                    if (candidate?.Spawned == true && candidate.Map == __instance.Map && AnalogMovement.TryGetPosition(candidate, out _))
+                        scope.Pawns.Add(new KeyValuePair<Pawn, Bounds>(candidate, boundsFor(candidate)));
+                }
+                scope.Pawns.Sort((a, b) => a.Key.thingIDNumber.CompareTo(b.Key.thingIDNumber));
+                return;
+            }
             Pawn pawn = NativeView.ControlledPawn;
             if (boundsFor == null || __instance?.Map == null || pawn == null || !pawn.Spawned
                 || pawn.Map != __instance.Map || !AnalogMovement.TryGetPosition(pawn, out _)) return;
@@ -216,6 +229,17 @@ namespace RimFront
         static List<Thing> CandidatesAt(ThingGrid grid, IntVec3 cell, Thing projectile)
         {
             List<Thing> original = grid.ThingsListAtFast(cell);
+            if (scope.Projectile == projectile && scope.Pawns != null)
+            {
+                List<Thing> result = null;
+                foreach (var pair in scope.Pawns)
+                    if (OverlapsCell(pair.Value, cell) && !original.Contains(pair.Key))
+                    {
+                        if (result == null) result = new List<Thing>(original);
+                        result.Add(pair.Key);
+                    }
+                return result ?? original;
+            }
             if (!ControlledBounds(projectile, cell, out Pawn pawn, out _) || original.Contains(pawn)) return original;
             // Never alter the game's registered grid or share a scratch list with nested impacts.
             var candidates = new List<Thing>(original.Count + 1);
@@ -226,6 +250,11 @@ namespace RimFront
 
         static float CoverWithControlledBounds(float original, Thing projectile, IntVec3 cell)
         {
+            if (scope.Projectile == projectile && scope.Pawns != null)
+            {
+                foreach (var pair in scope.Pawns) if (OverlapsCell(pair.Value, cell)) original = Mathf.Max(original, pair.Value.max.y);
+                return original;
+            }
             return ControlledBounds(projectile, cell, out _, out Bounds bounds)
                 ? Mathf.Max(original, bounds.max.y) : original;
         }

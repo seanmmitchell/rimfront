@@ -20,6 +20,7 @@ namespace RimFront
         }
         internal static Vector3 Sample(Pawn pawn, Vector3 target)
         {
+            if (RimFrontMultiplayer.InSession) return SimulationGeometry.Muzzle(pawn, target);
             Vector3 eye = NativeView.RenderPosition;
             if (!NativeWeapons.TryGetMuzzle(pawn, out Vector3 muzzle, out _)) return eye;
             Vector3 delta = muzzle - eye;

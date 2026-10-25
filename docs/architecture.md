@@ -16,7 +16,7 @@ NativeView input -> RimFrontGame -> native movement / attack / reload jobs
 
 `NativeView` temporarily owns the existing camera and gameplay input. Harmony suppresses colony camera/UI handling and flat map/dynamic rendering during possession. Entry saves camera, cursor, subcamera, background-execution and fire-at-will settings; release restores them. `NativeWindowIcon` captures/restores existing Windows icons with bounded transition retries and process-lifetime owned copies.
 
-`RimFrontGame` validates the controlled pawn, consumes frame input on game ticks and owns only its exact jobs. Automatic one-tick posture waits, reloads and verified automatic setup of the equipped CE bipod are compatible transitions. External incompatible orders, focus/modal interruptions and pawn/map lifecycle changes release control. Mode switching clears pending fire, preserves cooldown and requires physical trigger release. Successful non-bursting attack completion preserves CE repeat-shot state; interruption resets the exact owned verb before clearing manual geometry. Possession is never serialized.
+`RimFrontGame` validates the controlled pawn, consumes frame input on game ticks and owns only its exact jobs. Automatic one-tick posture waits, reloads and verified automatic setup of the equipped CE bipod are compatible transitions. External incompatible orders, focus/modal interruptions and pawn/map lifecycle changes release control. Mode switching clears pending fire, preserves cooldown and requires physical trigger release. Successful non-bursting attack completion preserves CE repeat-shot state; interruption resets the exact owned verb before clearing manual geometry. Single-player possession is transient. Multiplayer controllers serialize simulation state for snapshot/replay consistency; cameras remain local.
 
 ## Movement and targeting
 
@@ -45,6 +45,23 @@ Owned CE ballistic queries use floating-point cell traversal and rendered contac
 `NativeCombatEffects` observes actual launches, beam segments, impacts and shield outcomes. `NativeBloodEffects` observes real injuries and bleeding; existing blood filth supplies persistent stains. Bounded pools limit cosmetic work. `NativeShieldEffects` has a separate lifecycle for optional colony-view echoes and clears on map/game changes.
 
 `NativeLighting` samples sky, roofs and glow with per-draw properties and incremental chunk recoloring. Face-center samples reduce light leaking across walls. `NativeWeather` updates bounded precipitation at 20 Hz on simulation time. Snow and roofs remain game-owned. These approximations do not reproduce every stock or mod effect.
+
+## Multiplayer boundary
+
+`RimFrontMultiplayerGame` owns a synchronized possession index and per-pawn `RimFrontGame`
+controllers. `Map.MapPreTick` advances each map's controllers in pawn-ID order before native
+pawn work. Controller scopes preserve existing shared adapter call sites; movement state,
+manual aim, crouch and bipod/brace preferences resolve by pawn. Job callbacks use the actual
+tracker rather than the local view. `GameComponentUpdate` samples only the local camera and
+submits bounded input through registered Multiplayer methods. Simulation never consumes local
+wall-clock freshness. `MultiplayerBridge` verifies exact per-branch binary hashes and narrow
+reflection contracts, captures native command sender identity and delegates pause votes.
+
+CPU collision uses canonical body/posture and synchronized weapon origins, independent of GPU
+resources, animation observations and render LOD. Multiplayer mountain geometry derives from
+map occupancy rather than displayed chunk publication. Snapshots retain leases, input/action
+state, movement, exact job IDs, aim and bipod policy. Existing projectile tags retain native
+serialization. See [multiplayer](multiplayer.md) for approximations and pending live gates.
 
 ## Version boundary
 

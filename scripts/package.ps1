@@ -21,7 +21,7 @@ foreach ($version in @('1.6','1.7')) {
 }
 # Explicit current documents prevent obsolete browser docs left in mod/docs (or docs)
 # from leaking into a release. Read originals directly; never mutate mod staging.
-$documents = @('architecture.md','compatibility.md','performance.md','smoke-tests.md','model-catalog.png','object-catalog.png','action-catalog.png')
+$documents = @('multiplayer.md','multiplayer-1.6-contracts.json','multiplayer-1.7-contracts.json','architecture.md','compatibility.md','performance.md','smoke-tests.md','model-catalog.png','object-catalog.png','action-catalog.png')
 function Add-File($files, [string]$relative, [string]$entry) {
     $path = Join-Path $projectRoot $relative
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing package input: $relative" }

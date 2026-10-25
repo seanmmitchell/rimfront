@@ -10,13 +10,18 @@ All automated suites passed after updating an older reflection test to supply th
 
 ## Target matrix
 
+Multiplayer development on 2026-10-25 adds synchronized per-pawn controllers and pinned
+1.6/1.7 adapters. The downloaded 1.7 port's metadata and loader contracts were inspected.
+No live two-client result is claimed, and installed CE still advertises only 1.6.
+See [multiplayer evidence and release gates](multiplayer.md).
+
 | Target | Build boundary | 0.6.3 live status |
 | --- | --- | --- |
 | RimWorld 1.6 | Pinned `Krafs.Rimworld.Ref` 1.6.4871, `Lib.Harmony` 2.4.2, .NET Framework 4.7.2 | Not validated |
 | RimWorld 1.7 | Installed game/Harmony, UnityStubs/Waylith references, .NET 10 | Not validated |
 | Either branch with CE | Optional checked adapter; requires CE appropriate for that branch | Not validated |
 | Other camera, movement or combat mods | Shared Harmony targets may conflict | No general compatibility claim |
-| Multiplayer / concurrent controllers | Outside current scope | Unsupported |
+| Multiplayer / concurrent controllers | Draft optional adapter; pinned upstream 1.6 and community 1.7 port | Live two-client matrix pending; see [multiplayer](multiplayer.md) |
 
 The inspected 1.7 installation was 1.7.4981 on the unstable branch. Its APIs may change. An upstream CE source revision advertised 1.6; source inspection alone does not establish a supported 1.7 release. Validate the exact game, Harmony, CE and mod combination you install.
 

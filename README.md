@@ -25,7 +25,7 @@ Play a drafted RimWorld colonist in first person, rendered inside the game's own
 | Space | Pause/resume |
 | Escape | Return to colony view |
 
-The entry click does not fire. The HUD shows health, weapon, ammunition, fire mode, movement mode, FPS estimate and rendering counters. Focus loss, a blocking dialog, loss of pawn eligibility, a map change or an incompatible external job releases control. Exit restores camera, cursor, subcamera, background-execution and fire-at-will settings. Possession is not saved. A Windows safeguard preserves existing game-window icons around transitions; its live behavior still needs verification.
+The entry click does not fire. The HUD shows health, weapon, ammunition, fire mode, movement mode, FPS estimate and rendering counters. Focus loss, a blocking dialog, loss of pawn eligibility, a map change or an incompatible external job releases control. Exit restores camera, cursor, subcamera, background-execution and fire-at-will settings. Single-player possession is not saved. Multiplayer snapshots retain simulation state for join/resync/replay; reopened live sessions return to colony view. A Windows safeguard preserves existing game-window icons around transitions; its live behavior still needs verification.
 
 The top-right minimap shows a cached north-up view using the installed native terrain, buildings, vegetation and item art. White marks you and your facing direction; gold marks the crosshair aim point. Nearby pawns use relationship-colored dots with fog and line-of-sight checks. The image normally includes 25 tiles in every direction and expands toward distant aim with four tiles of context. Shooting retains its native range and visibility limits.
 
@@ -136,7 +136,7 @@ The [firing-loop suite](https://github.com/seanmmitchell/rimfront/blob/main/test
 
 For release preparation, use `./scripts/verify-release.ps1` with the same `-Dotnet`, `-RimWorld17Dir` and `-Harmony17Dir` arguments. It builds both versions, runs all suites including firing-loop mutation checks, and only then packages. Calling `package.ps1` alone only creates archives; it does not verify behavior.
 
-See [architecture](docs/architecture.md) for implementation boundaries, [performance](docs/performance.md) for budgets and live measurement, and [smoke tests](docs/smoke-tests.md) for release checks. Multiplayer, concurrent controllers, universal visual-mod compatibility and measured FPS improvements are not claimed.
+See [architecture](docs/architecture.md) for implementation boundaries, [performance](docs/performance.md) for budgets and live measurement, and [smoke tests](docs/smoke-tests.md) for release checks. Multiplayer integration is draft work with concurrent per-player controllers on pinned 1.6/1.7 Multiplayer builds; see [multiplayer setup and pending live verification](docs/multiplayer.md). A working 1.7 Multiplayer/CE combination is not yet established. Universal visual-mod compatibility and measured FPS improvements are not claimed.
 
 ## Contributing and CI
 

@@ -14,12 +14,12 @@ namespace RimFront
     {
         internal const int ChunkSize = 12;
         internal const float FogHeight = 5f;
-        internal static int ChunkRadius => ViewRange.ChunkRadiusFor(RimFrontMod.Settings?.extraViewRange ?? 0);
+        internal static int ChunkRadius => ViewRange.ChunkRadiusFor(RimFrontMultiplayer.ViewStep);
         internal const int MaximumChunks = ViewRange.MaximumChunks;
         internal static int DrawCalls { get; private set; }
         internal static void CountDraw() { DrawCalls++; }
         internal static int CachedChunks { get { return chunks.Count; } }
-        internal static float ViewDistance => ViewRange.DistanceFor(RimFrontMod.Settings?.extraViewRange ?? 0);
+        internal static float ViewDistance => ViewRange.DistanceFor(RimFrontMultiplayer.ViewStep);
         internal static float ViewDistanceSquared => ViewDistance * ViewDistance;
         static readonly Dictionary<int, Chunk> chunks = new Dictionary<int, Chunk>();
         static readonly List<int> expired = new List<int>();

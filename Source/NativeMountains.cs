@@ -47,6 +47,7 @@ namespace RimFront
             => map == thing.Map ? surfaces.AtCell(thing.Position.x, thing.Position.z)?.Revision ?? -1 : -1;
         internal static void Add(NativeScene.Builder b, Thing thing, bool fogged = false, MountainSurfaceCache.Snapshot snapshot = null)
         {
+            if (RimFrontMultiplayer.InSession) { SimulationGeometry.AddMountain(b, thing, fogged); return; }
             if (map != thing.Map) return;
             int x = thing.Position.x, z = thing.Position.z;
             snapshot = snapshot ?? surfaces.AtCell(x, z);

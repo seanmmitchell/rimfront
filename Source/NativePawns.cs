@@ -97,6 +97,7 @@ namespace RimFront
         {
             ahead = 0;
             if (pawn == null) return false;
+            if (RimFrontMultiplayer.InSession) return SimulationGeometry.TryAimPawn(pawn, corpse, eye, yaw, pitch, out ahead);
             Geometry standing;
             Geometry[] parts = null;
             NativePawnModels.Appearance appearance;
@@ -185,7 +186,7 @@ namespace RimFront
                 min.x, min.y, min.z, max.x, max.y, max.z, out ahead);
         }
 
-        static Matrix4x4 LyingRoot(Pawn pawn, NativePawnRig.Form form, float yaw, bool corpse, ref Vector3 position)
+        internal static Matrix4x4 LyingRoot(Pawn pawn, NativePawnRig.Form form, float yaw, bool corpse, ref Vector3 position)
         {
             bool tall = form == NativePawnRig.Form.Human || form == NativePawnRig.Form.MechBiped;
             float scale = NativeScene.PawnScale(pawn), width = NativePawnModels.BaseWidth(form), center = tall ? .85f : .48f;

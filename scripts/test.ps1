@@ -2,6 +2,10 @@
 param([string]$Dotnet = 'dotnet', [string]$RimWorld17Dir = $env:RIMWORLD_17_DIR, [string]$Harmony17Dir = $env:HARMONY_17_DIR, [string]$CombatExtendedAssembly = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
+& $Dotnet run --project (Join-Path $projectRoot 'tests/MultiplayerBridgeTests/MultiplayerBridgeTests.csproj') --configuration Release
+if ($LASTEXITCODE -ne 0) { throw "Multiplayer bridge checks failed ($LASTEXITCODE)." }
+& $Dotnet run --project (Join-Path $projectRoot 'tests/MultiplayerTests/MultiplayerTests.csproj') --configuration Release
+if ($LASTEXITCODE -ne 0) { throw "Multiplayer scenarios failed ($LASTEXITCODE)." }
 & $Dotnet run --project (Join-Path $projectRoot 'tests/PawnSpriteTests/PawnSpriteTests.csproj') --configuration Release "-p:RestoreConfigFile=$(Join-Path $projectRoot 'NuGet.Config')"
 if ($LASTEXITCODE -ne 0) { throw "Pawn sprite tests failed ($LASTEXITCODE)." }
 & (Join-Path $PSScriptRoot 'test-firing-loop.ps1') -Dotnet $Dotnet -VerifyMutations

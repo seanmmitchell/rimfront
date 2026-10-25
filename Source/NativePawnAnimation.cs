@@ -72,7 +72,7 @@ namespace RimFront
             float speed = 0;
             if (moving)
             {
-                if (AnalogMovement.Controls(pawn)) speed = AnalogMovement.Velocity.magnitude;
+                if (AnalogMovement.Controls(pawn)) speed = AnalogMovement.VelocityFor(pawn).magnitude;
                 else if (elapsed > 0 && elapsed <= 30) speed = displacement.magnitude * 60f / elapsed;
                 else speed = pawn.GetStatValue(StatDefOf.MoveSpeed);
             }
@@ -110,7 +110,12 @@ namespace RimFront
             }
             else if (state.Melee > 0)
                 SetAim(ref state, position, observation.MeleeTarget, NativeScene.GetPawnHeight(pawn) * .65f);
-            if (NativeView.ControlledPawn == pawn)
+            if (RimFrontMultiplayer.InSession && RimFrontGame.For(pawn) is RimFrontGame controller)
+            {
+                state.FacingYaw = controller.Yaw * Mathf.Rad2Deg;
+                if (state.Aiming) state.AimPitch = Mathf.Clamp(controller.Pitch * Mathf.Rad2Deg, -70, 70);
+            }
+            else if (NativeView.ControlledPawn == pawn)
             {
                 state.FacingYaw = NativeView.Yaw * Mathf.Rad2Deg;
                 if (state.Aiming) state.AimPitch = Mathf.Clamp(NativeView.PitchDegrees, -70, 70);

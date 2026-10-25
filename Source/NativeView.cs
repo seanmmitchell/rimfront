@@ -23,7 +23,8 @@ namespace RimFront
         static readonly List<Camera> disabledSubcameras = new List<Camera>();
         static float yaw, pitch;
         internal static bool Crouching { get; private set; }
-        internal static bool IsCrouching(Pawn candidate) => Active && candidate == pawn && Crouching;
+        internal static bool IsCrouching(Pawn candidate) => RimFrontMultiplayer.InSession
+            ? RimFrontGame.For(candidate)?.Crouching == true : Active && candidate == pawn && Crouching;
         static int consumeEscapeThroughFrame = -1;
         static bool requestRelease, waitForInitialMouseUp;
         static float nextHudRefresh;
@@ -152,7 +153,11 @@ namespace RimFront
             bool release = escape || !Application.isFocused
                 || !pawn.Spawned || pawn.Dead || pawn.Downed || !pawn.Drafted || pawn.Map != Find.CurrentMap || ModalOpen();
             if (release) return new InputCommand { action = "release" };
-            if (Input.GetKeyDown(KeyCode.Space)) Find.TickManager.TogglePaused();
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                if (RimFrontMultiplayer.InSession) MultiplayerBridge.TogglePause();
+                else Find.TickManager.TogglePaused();
+            }
 #if RW17
             // Waylith's verified Input shim exposes raw pixel deltas rather than Unity's axes.
             const float sensitivity = 0.13f;
@@ -163,10 +168,10 @@ namespace RimFront
             pitch = Mathf.Clamp(pitch - Input.GetAxisRaw("Mouse Y") * sensitivity, -65f, 70f);
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
-            if (!Find.TickManager.Paused) Crouching = Input.GetKey(KeyCode.LeftControl);
+            bool paused = RimFrontMultiplayer.InSession ? MultiplayerBridge.Paused : Find.TickManager.Paused;
+            if (!paused) Crouching = Input.GetKey(KeyCode.LeftControl);
             ApplyPose();
             if (!Input.GetMouseButton(0)) waitForInitialMouseUp = false;
-            bool paused = Find.TickManager.Paused;
             return new InputCommand
             {
                 action = "input", yaw = Yaw, pitch = pitch * Mathf.Deg2Rad, crouch = Crouching,
@@ -195,7 +200,7 @@ namespace RimFront
                     : pawn.Position.ToVector3Shifted();
             }
             camera.farClipPlane = NativeScene.ViewDistance;
-            position.y = Crouching ? NativeStance.CrouchEyeHeight : EyeHeight;
+            position.y = IsCrouching(pawn) ? NativeStance.CrouchEyeHeight : EyeHeight;
             camera.transform.position = position;
             camera.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
         }
@@ -256,7 +261,7 @@ namespace RimFront
                 GUI.color = Color.white;
                 Widgets.Label(new Rect(28, 42, 690, 24), "WASD · Ctrl crouch · LMB fire · R reload · F mode · V brace · G auto · Space pause · Esc exit");
                 Widgets.DrawBoxSolid(new Rect(width - 340, 16, 324, 31), new Color(0.055f, 0.07f, 0.06f, 0.88f));
-                Widgets.Label(new Rect(width - 328, 18, 304, 26), (AnalogMovement.Active ? "Analog" : "Native path") + " / " + NativeScene.DrawCalls + " draws / " + NativeScene.CachedChunks + " chunks");
+                Widgets.Label(new Rect(width - 328, 18, 304, 26), (AnalogMovement.Controls(pawn) ? "Analog" : "Native path") + " / " + NativeScene.DrawCalls + " draws / " + NativeScene.CachedChunks + " chunks");
                 Widgets.DrawBoxSolid(new Rect(16, height - 114, 620, 98), new Color(0.055f, 0.07f, 0.06f, 0.88f));
                 Widgets.Label(new Rect(28, height - 110, 600, 26), NativeBipods.Describe(pawn));
                 string ammo = weapon != null && weapon.ammo >= 0 ? "  " + weapon.ammo + " / " + weapon.capacity : "";
@@ -318,7 +323,9 @@ namespace RimFront
             if (!NativeView.Active) return true;
             if (NativeView.ModalOpen())
             {
-                RimFrontGame.Active?.Release("Control released for a game dialog.");
+                if (RimFrontMultiplayer.InSession)
+                    RimFrontMultiplayer.RequestRelease(RimFrontGame.For(NativeView.ControlledPawn));
+                else RimFrontGame.Active?.Release("Control released for a game dialog.");
                 return true;
             }
             Text.StartOfOnGUI();

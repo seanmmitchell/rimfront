@@ -116,7 +116,7 @@ public sealed class FiringWorld : IDisposable
         Pawn.stances.SetStance(new Stance_Warmup(Math.Max(1, WarmupTicks), job.targetA, Verb));
     }
 
-    void NativeTick()
+    public void NativeTick()
     {
         if (Pawn.CurJob == null && !HoldQueuedJobs) Pawn.jobs.StartNextQueued();
         Stance_Busy busy = Pawn.stances.curStance as Stance_Busy;
@@ -215,9 +215,17 @@ namespace RimWorld
 }
 namespace Verse
 {
-    public class Game { }
-    public class GameComponent { public virtual void GameComponentUpdate() { } public virtual void GameComponentTick() { } public virtual void GameComponentOnGUI() { } }
-    public class Map { }
+    public class Game
+    {
+        readonly Dictionary<Type, object> components = new Dictionary<Type, object>();
+        public T GetComponent<T>() where T : class
+        {
+            if (!components.TryGetValue(typeof(T), out var value)) components[typeof(T)] = value = Activator.CreateInstance(typeof(T), this);
+            return (T)value;
+        }
+    }
+    public class GameComponent : IExposable { public virtual void GameComponentUpdate() { } public virtual void GameComponentTick() { } public virtual void GameComponentOnGUI() { } public virtual void ExposeData() { } }
+    public class Map { static int next; public int uniqueID = ++next; public void MapPreTick() { } }
     public class Faction { public static readonly Faction OfPlayer = new Faction(); }
     public class RaceProperties { public bool Humanlike = true; }
     public class Drafter { public bool FireAtWill = true; }
@@ -237,6 +245,7 @@ namespace Verse
     }
     public class Pawn
     {
+        static int nextPawn; public int thingIDNumber = ++nextPawn;
         public readonly FiringWorld World; public readonly Verb Verb; public readonly Pawn_JobTracker jobs;
         public readonly Pawn_PathFollower pather = new Pawn_PathFollower(); public readonly StanceTracker stances = new StanceTracker();
         public readonly Drafter drafter = new Drafter(); public readonly RaceProperties RaceProps = new RaceProperties();
@@ -275,7 +284,7 @@ namespace Verse
     public struct LocalTargetInfo { public ThingWithComps Thing; public IntVec3 Cell; public static implicit operator LocalTargetInfo(ThingWithComps thing) => new LocalTargetInfo { Thing = thing }; public static implicit operator LocalTargetInfo(IntVec3 cell) => new LocalTargetInfo { Cell = cell }; }
     public class Building_Door { public bool Open => true; public bool IsForbiddenToPass(Pawn p) => false; public bool PawnCanOpen(Pawn p) => true; }
     public class TickManager { public bool Paused; public int TicksGame; }
-    public static class Find { public static Map CurrentMap; public static TickManager TickManager = new TickManager(); }
+    public static class Find { public static Map CurrentMap; public static readonly List<Map> Maps = new List<Map>(); public static TickManager TickManager = new TickManager(); }
     public static class Current { public static Game Game { get; set; } }
     public static class VersionControl { public static string CurrentVersionString => "deterministic-engine-fixture"; }
     public static class Messages { public static void Message(string text, object type, bool historical) { } }
@@ -345,7 +354,7 @@ namespace Verse.AI
         }
         public void StartJob(Job next, JobCondition condition = JobCondition.None, object jobGiver = null, bool resumeCurJobAfterwards = false)
         {
-            RimFrontGame.Active?.BeforeNativeJobStart(this, next, ref resumeCurJobAfterwards);
+            RimFrontGame.For(this)?.BeforeNativeJobStart(this, next, ref resumeCurJobAfterwards);
             // Native StartJob cancels busy stance before suspending/cleaning the previous job.
             pawn.stances.curStance = new Stance();
             if (curJob != null)
@@ -361,7 +370,7 @@ namespace Verse.AI
         public void CleanupCurrentJob(JobCondition condition)
         {
             if (curJob == null) return;
-            RimFrontGame.Active?.BeforeNativeJobCleanup(this, condition);
+            RimFrontGame.For(this)?.BeforeNativeJobCleanup(this, condition);
             curJob = null;
             // Native soft cancellation ends warmup but retains cooldown.
             if (pawn.stances.curStance is Stance_Warmup) pawn.stances.curStance = new Stance();
@@ -411,8 +420,11 @@ namespace RimFront
     }
     internal static class NativeBipods
     {
+        internal static void ClearAll() { }
         internal static void Start(Pawn p) { p.World.AutoBipod = true; }
         internal static void Stop() { }
+        internal static bool Automatic(Pawn p) => p.World.AutoBipod;
+        internal static void Restore(Pawn p, bool automatic) { if (p != null) p.World.AutoBipod = automatic; }
         internal static bool TryToggle(Pawn p, out string message)
         {
             message = "simulated bipod";
@@ -431,7 +443,12 @@ namespace RimFront
         { p.World.Mode = p.World.Mode == "Auto" ? "Single" : p.World.Mode == "Single" ? "Burst" : "Auto"; message = p.World.Mode; return true; }
     }
     internal static class NativeManualAim
-    { internal static bool CanCast(Verb verb) => !verb.World.InvalidAim; internal static void Update(Pawn p, float yaw, float pitch) { } internal static void Clear(Pawn p = null) { } }
+    {
+        internal sealed class Snapshot { }
+        internal static Snapshot Capture(Pawn p) => null;
+        internal static void Restore(Pawn p, Job j, Snapshot snapshot) { }
+        internal static bool CanCast(Verb verb) => !verb.World.InvalidAim; internal static void Update(Pawn p, float yaw, float pitch) { } internal static void Clear(Pawn p = null) { }
+    }
     internal static class NativeView
     {
         internal static Pawn ControlledPawn; internal static bool Active, FireHeld; internal static float Yaw = 0; internal static InputCommand Command;
@@ -447,7 +464,7 @@ namespace RimFront
         internal static void Tick(float yaw, float forward, float strafe) { IsMoving = Math.Abs(forward) + Math.Abs(strafe) >= .1f; }
     }
     internal static class AnalogCombatCompatibility { internal static bool Supported => true; }
-    internal sealed class FixtureSettings { public bool analogMovement = true, movingFire = true, movingReload = true; }
+    internal sealed class FixtureSettings { public bool analogMovement = true, movingFire = true, movingReload = true; public int extraViewRange; }
     internal static class RimFrontMod { internal static readonly FixtureSettings Settings = new FixtureSettings(); }
     internal sealed class NativeFiringTrace
     {
@@ -464,6 +481,7 @@ namespace RimFront
     internal static class NativeAimTargeting { internal static void Dispose() { } }
     internal static class NativePawns { internal static void ClearAimCache() { } }
     internal static class NativePawnAnimation { internal static void Dispose() { } }
+    internal static class SimulationGeometry { internal static void Clear() { } }
 }
 
 namespace CombatExtended
@@ -488,4 +506,31 @@ namespace RimFront
         internal enum WeaponKind { Rifle, Shotgun, Smg, Sniper, Heavy, Launcher, Pistol }
         internal static WeaponKind ClassifyName(string name, bool ranged) => WeaponKind.Rifle;
     }
+}
+
+namespace RimFront
+{
+    internal sealed class AnalogMovementState : IExposable
+    {
+        internal void Stop() => AnalogMovement.Stop();
+        public void ExposeData() { }
+    }
+#if !MULTIPLAYER_FIXTURE
+    internal static class RimFrontMultiplayer
+    {
+        internal static bool InSession => false;
+        internal static bool InSimulation => false;
+        internal static void CloseLocalView() { }
+        internal static bool RulesMovingFire => RimFrontMod.Settings.movingFire;
+        internal static bool RulesMovingReload => RimFrontMod.Settings.movingReload;
+        internal static bool RulesAnalog => RimFrontMod.Settings.analogMovement;
+        internal static RimFrontGame Controller(Pawn p) => null;
+        internal static RimFrontGame Controller(Pawn_PathFollower p) => null;
+        internal static RimFrontGame Controller(Pawn_JobTracker p) => null;
+        internal static void RequestClaim(Pawn p) { throw new System.Exception("SP fixture sent a multiplayer claim"); }
+        internal static void RequestRelease(RimFrontGame c) { throw new System.Exception("SP fixture sent a multiplayer release"); }
+        internal static System.IDisposable Scope(RimFrontGame c) => new EmptyScope();
+        sealed class EmptyScope : System.IDisposable { public void Dispose() { } }
+    }
+#endif
 }

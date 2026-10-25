@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using RimWorld;
 using Verse;
@@ -6,9 +7,25 @@ using Verse.AI;
 
 namespace RimFront
 {
-    public sealed class RimFrontGame : GameComponent
+    public sealed class RimFrontGame : GameComponent, IExposable
     {
         internal static RimFrontGame Active;
+        internal Pawn ControlledPawn => pawn;
+        internal Map ControlledMap => controlledMap;
+        internal bool NetworkControlled;
+        internal ControlLease Lease;
+        internal AnalogMovementState Movement = new AnalogMovementState();
+        internal string Status => message;
+        internal float Yaw => input?.yaw ?? 0;
+        internal float Pitch => input?.pitch ?? 0;
+        internal bool Crouching => input?.crouch == true;
+        internal static RimFrontGame For(Pawn pawn) => RimFrontMultiplayer.Controller(pawn) ?? (Active?.pawn == pawn && pawn != null ? Active : null);
+        internal static RimFrontGame For(Pawn_PathFollower follower) => RimFrontMultiplayer.Controller(follower)
+            ?? (Active?.pawn?.pather == follower && follower != null ? Active : null);
+        internal static RimFrontGame For(Pawn_JobTracker jobs) => RimFrontMultiplayer.Controller(jobs)
+            ?? (Active?.pawn?.jobs == jobs && jobs != null ? Active : null);
+        internal bool FreshInput => NetworkControlled ? input != null && Lease != null && !Lease.Expired(Find.TickManager.TicksGame)
+            : !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds);
         Pawn pawn;
         Map controlledMap;
         Job ownedJob;
@@ -16,6 +33,7 @@ namespace RimFront
         int recentOwnedAttackId;
         bool oldFireAtWill;
         InputCommand input;
+        List<int> networkActions = new List<int>();
         bool pendingReload, pendingFire, pendingBrace, pendingBipod;
         bool pendingFireMode, requireFireRelease, attackRequiresTriggerPress;
         bool suppressNextFireEdge, reportedStaleFire;
@@ -34,14 +52,14 @@ namespace RimFront
             && candidate.Faction == Faction.OfPlayer && candidate.Drafted && !candidate.Dead
             && !candidate.Downed && !candidate.InMentalState && candidate.RaceProps.Humanlike;
         public bool Controls(Pawn candidate) => pawn == candidate;
-        bool MovingFireEnabled => RimFrontMod.Settings?.movingFire ?? true;
+        bool MovingFireEnabled => RimFrontMultiplayer.RulesMovingFire;
         bool CanMoveAndFire => MovingFireEnabled && pawn?.stances?.stunner?.Stunned != true
             && pawn?.equipment?.Primary?.def.IsRangedWeapon == true;
         bool OwnsRangedAttack => pawn?.CurJob == ownedJob && ownedJob?.def == JobDefOf.AttackStatic
             && ownedJob.verbToUse != null && !ownedJob.verbToUse.IsMeleeAttack;
         bool FreshMovementInput => input != null && !Find.TickManager.Paused
-            && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds);
-        bool CanMoveAndReload => FreshMovementInput && (RimFrontMod.Settings?.movingReload ?? true)
+            && FreshInput;
+        bool CanMoveAndReload => FreshMovementInput && (RimFrontMultiplayer.RulesMovingReload)
             && pawn?.stances?.stunner?.Stunned != true && CombatAdapter.IsEquippedReload(pawn, pawn?.CurJob)
             && (!(pawn.stances.curStance is Stance_Busy busy)
                 || (busy is Stance_Cooldown && busy.verb == pawn.equipment?.PrimaryEq?.PrimaryVerb));
@@ -63,8 +81,10 @@ namespace RimFront
 
         public void Control(Pawn candidate)
         {
+            if (!NetworkControlled && RimFrontMultiplayer.InSession)
+            { RimFrontMultiplayer.RequestClaim(candidate); return; }
             if (!CanControl(candidate)) return;
-            Active?.Release("Control transferred.");
+            if (!NetworkControlled) Active?.Release("Control transferred.");
             pawn = candidate;
             controlledMap = candidate.Map;
             recentOwnedAttack = null;
@@ -82,10 +102,10 @@ namespace RimFront
                 candidate.pather?.StopDead();
                 string fallback = null;
                 _ = AnalogCombatCompatibility.Supported;
-                bool analog = (RimFrontMod.Settings?.analogMovement ?? true) && AnalogMovement.Start(candidate, out fallback);
+                bool analog = RimFrontMultiplayer.RulesAnalog && AnalogMovement.Start(candidate, out fallback);
                 movementMode = analog ? "Analog" : "Native path";
                 NativeBipods.Start(candidate);
-                NativeView.Start(candidate);
+                if (!NetworkControlled) NativeView.Start(candidate);
                 firingTrace.Event(pawn, "control-start", movementMode);
                 message = fallback ?? (movementMode + " movement - WASD move, mouse look, LMB fire, R reload, F fire mode, V bipod, G auto bipod, Escape return.");
                 if (fallback != null) Log.Warning("[RimFront] " + fallback);
@@ -101,6 +121,8 @@ namespace RimFront
 
         public void Release(string reason)
         {
+            if (NetworkControlled && !RimFrontMultiplayer.InSimulation)
+            { RimFrontMultiplayer.RequestRelease(this); return; }
             bool wasActive = pawn != null || Active == this;
             firingTrace.Event(pawn, "control-release", reason);
             try
@@ -122,18 +144,19 @@ namespace RimFront
                 recentOwnedAttack = null;
                 recentOwnedAttackId = 0;
                 input = null;
+                networkActions.Clear();
                 pendingBipod = pendingBrace = pendingReload = pendingFire = pendingFireMode = requireFireRelease = false;
                 suppressNextFireEdge = reportedStaleFire = false;
                 firingTrace.Reset();
                 message = reason;
                 if (Active == this) Active = null;
-                try { NativeView.Stop(); }
+                try { if (!NetworkControlled) NativeView.Stop(); }
                 catch (Exception e) { Log.Error("[RimFront] Camera restoration failed: " + e); }
-                try { AnalogMovement.Stop(); }
+                try { Movement.Stop(); }
                 catch (Exception e) { Log.Error("[RimFront] Movement restoration failed: " + e); }
-                try { NativeScene.Dispose(); }
+                try { if (!NetworkControlled) NativeScene.Dispose(); }
                 catch (Exception e) { Log.Warning("[RimFront] Scene cleanup: " + e.Message); }
-                NativeTargetIndicators.Dispose();
+                if (!NetworkControlled) NativeTargetIndicators.Dispose();
                 if (wasActive) Log.Message("[RimFront] " + reason);
             }
         }
@@ -182,6 +205,7 @@ namespace RimFront
 
         internal void BeforeNativeJobCleanup(Pawn_JobTracker tracker, JobCondition condition)
         {
+            using var scope = RimFrontMultiplayer.Scope(this);
             // Runs before replacement/pooling, while exact ownership is still provable.
             // Never infer ownership later from a new job using the same weapon.
             if (pawn?.jobs != tracker || ownedJob == null || pawn.CurJob != ownedJob) return;
@@ -199,6 +223,7 @@ namespace RimFront
 
         internal void BeforeNativeJobStart(Pawn_JobTracker tracker, Job next, ref bool resumeCurrent)
         {
+            using var scope = RimFrontMultiplayer.Scope(this);
             if (pawn?.jobs == tracker) firingTrace.RecordJobStart(pawn, next, ownedJob, resumeCurrent);
             if (pawn?.jobs != tracker || ownedJob == null || pawn.CurJob != ownedJob) return;
             if (!NativeJobPolicy.SuppressAttackResume(true, ownedJob.def?.defName, resumeCurrent,
@@ -209,7 +234,7 @@ namespace RimFront
             // subsequent fire uses the normal trigger policy and a fresh crosshair ray.
             resumeCurrent = false;
             bool freshInput = input != null && !requireFireRelease && !pendingReload && !pendingFireMode && !pendingBrace && !pendingBipod
-                && !Find.TickManager.Paused && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds)
+                && !Find.TickManager.Paused && FreshInput
                 && (CanMoveAndFire || Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f);
             pendingFire |= NativeAttackLifecycle.RetryAfterReload(freshInput, attackHasFired,
                 attackInitialShotTick, ownedJob.verbToUse?.LastShotTick ?? attackInitialShotTick);
@@ -230,7 +255,7 @@ namespace RimFront
         {
             Job current = pawn?.CurJob;
             if (current == null || current == ownedJob || current.def != JobDefOf.AttackStatic
-                || current != recentOwnedAttack || current.loadID != recentOwnedAttackId) return false;
+                || (current != recentOwnedAttack && !(NetworkControlled && recentOwnedAttack == null)) || current.loadID != recentOwnedAttackId) return false;
             // Native job selection can replay an earlier attack after a reload or
             // after successful completion without using StartJob's resume flag.
             // Its manual aim was released at cleanup; discard only this exact job.
@@ -245,6 +270,7 @@ namespace RimFront
             // Deferred engine window changes can land after FPS control has already ended.
             NativeWindowIcon.Tick();
             if (!NativeView.Active) NativeShieldEffects.Draw2D();
+            if (RimFrontMultiplayer.InSession) return;
             if (pawn == null) return;
             if (!CanControl(pawn) || pawn.Map != controlledMap || Find.CurrentMap != controlledMap)
             { Release("Control released: pawn unavailable or map changed."); return; }
@@ -302,15 +328,24 @@ namespace RimFront
 
         public override void GameComponentTick()
         {
-            if (pawn == null || !CanControl(pawn)) return;
+            if (!NetworkControlled && RimFrontMultiplayer.InSession) return;
+            if (pawn == null) return;
+            if (!CanControl(pawn) || pawn.Map != controlledMap)
+            { Release("Control released: pawn unavailable."); return; }
             try
             {
                 firingTrace.Observe(pawn, ownedJob);
                 // Native work can resume after a slow frame has cleared input.
                 if (DiscardResumedOwnedAttack()) return;
+                if (NeedsNativeJobControl)
+                {
+                    firingTrace.ReportUnexpectedJob(pawn, ownedJob, pendingReload);
+                    Release("Control released for native job: " + pawn.CurJob.def.defName + ".");
+                    return;
+                }
                 if (input == null) return;
                 double inputAge = (DateTime.UtcNow - acceptedAt).TotalMilliseconds;
-                if (NativeTriggerPolicy.IsStaleInput(inputAge))
+                if (!FreshInput)
                 {
                     if (!reportedStaleFire && (input.fire || ownedJob?.def == JobDefOf.AttackStatic))
                     {
@@ -328,14 +363,15 @@ namespace RimFront
                     pendingBipod = pendingBrace = pendingReload = pendingFire = pendingFireMode = false;
                     // Clear stale actions, but do not latch off an automatic trigger.
                     // The first new sample restores held state without inventing a click.
-                    suppressNextFireEdge = true;
+                    suppressNextFireEdge = true; // Single-player stale recovery.
                     return;
                 }
-                if (NeedsNativeJobControl)
+                if (NetworkControlled && networkActions.Count > 0 && !pendingReload && !pendingFireMode && !pendingBrace && !pendingBipod
+                    && !(pendingFire && (networkActions[0] & 1) != 0))
                 {
-                    firingTrace.ReportUnexpectedJob(pawn, ownedJob, pendingReload);
-                    Release("Control released for native job: " + pawn.CurJob.def.defName + ".");
-                    return;
+                    int actions = networkActions[0]; networkActions.RemoveAt(0);
+                    pendingFire |= (actions & 1) != 0; pendingReload |= (actions & 4) != 0;
+                    pendingFireMode |= (actions & 8) != 0; pendingBrace |= (actions & 16) != 0; pendingBipod |= (actions & 32) != 0;
                 }
                 bool movingBipod = Math.Abs(input.forward) + Math.Abs(input.strafe) >= .1f;
                 NativeWeaponBrace.Update(pawn, movingBipod);
@@ -465,6 +501,88 @@ namespace RimFront
             }
         }
 
+        internal void AcceptNetwork(InputCommand command, bool paused)
+        {
+            bool physical = command.fire;
+            command.fire &= NativeTriggerPolicy.AllowInput(physical, paused, ref requireFireRelease);
+            bool pressed = NativeTriggerPolicy.Pressed(command.fire, input?.fire ?? false, ref suppressNextFireEdge);
+            if (paused)
+            {
+                command.fire = command.reload = command.cycleFireMode = command.toggleBrace = command.toggleBipod = false;
+                command.forward = command.strafe = 0;
+                pendingBipod = pendingBrace = pendingReload = pendingFire = pendingFireMode = false;
+                networkActions.Clear();
+                AnalogMovement.Halt();
+            }
+            else
+            {
+                int actions = (pressed ? 1 : 0) | (command.reload ? 4 : 0) | (command.cycleFireMode ? 8 : 0)
+                    | (command.toggleBrace && !command.toggleBipod ? 16 : 0) | (command.toggleBipod ? 32 : 0);
+                if (actions != 0)
+                {
+                    if (networkActions.Count >= 32) { Release("Input action queue overflow; control released."); return; }
+                    networkActions.Add(actions);
+                }
+            }
+            input = command;
+            NativeManualAim.Update(pawn, command.yaw, command.pitch);
+        }
+        internal void AcceptNetworkStop()
+        {
+            AnalogMovement.Halt();
+            if (CombatAdapter.IsEquippedReload(pawn, pawn.CurJob)) pawn.pather?.StopDead();
+            NativeWeaponBrace.Clear();
+            if (ownedJob?.def == JobDefOf.Goto || ownedJob?.def == JobDefOf.AttackStatic) StopOwnedJob("stale network input");
+            input = null;
+            pendingBipod = pendingBrace = pendingReload = pendingFire = pendingFireMode = false;
+            networkActions.Clear();
+            suppressNextFireEdge = true;
+        }
+
+        public override void ExposeData()
+        {
+            // SP possession remains transient. Network snapshots must preserve simulation state.
+            if (!NetworkControlled) return;
+            Scribe_References.Look(ref pawn, "pawn"); Scribe_References.Look(ref controlledMap, "map");
+            Scribe_Values.Look(ref oldFireAtWill, "oldFireAtWill");
+            Scribe_Values.Look(ref pendingReload, "pendingReload"); Scribe_Values.Look(ref pendingFire, "pendingFire");
+            Scribe_Values.Look(ref pendingBrace, "pendingBrace"); Scribe_Values.Look(ref pendingBipod, "pendingBipod");
+            Scribe_Values.Look(ref pendingFireMode, "pendingFireMode"); Scribe_Values.Look(ref requireFireRelease, "requireFireRelease");
+            Scribe_Values.Look(ref attackRequiresTriggerPress, "requiresPress"); Scribe_Values.Look(ref suppressNextFireEdge, "suppressEdge");
+            Scribe_Values.Look(ref attackIdleTicks, "attackIdleTicks"); Scribe_Values.Look(ref attackHasFired, "attackHasFired");
+            Scribe_Values.Look(ref previousAttackTicks, "previousAttackTicks"); Scribe_Values.Look(ref previousShotTick, "previousShotTick", -1);
+            Scribe_Values.Look(ref attackInitialShotTick, "initialShot", -1); Scribe_Values.Look(ref recentOwnedAttackId, "recentJob", 0);
+            Scribe_Deep.Look(ref input, "input"); Scribe_Deep.Look(ref Movement, "movement");
+            Scribe_Collections.Look(ref networkActions, "networkActions", LookMode.Value);
+            if (networkActions == null) networkActions = new List<int>();
+            if (Scribe.mode == LoadSaveMode.Saving) { savedOwnedId = ownedJob?.loadID ?? -1; savedAutomatic = NativeBipods.Automatic(pawn); }
+            Scribe_Values.Look(ref savedOwnedId, "ownedJob", -1);
+            Scribe_Values.Look(ref savedAutomatic, "automaticBipod", true);
+            if (Scribe.mode == LoadSaveMode.Saving) savedBrace = NativeWeaponBrace.Capture(pawn);
+            Scribe_Deep.Look(ref savedBrace, "brace");
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                savedAim = NativeManualAim.Capture(pawn);
+                previousStanceWasCurrent = previousAttackStance != null && previousAttackStance == pawn?.stances?.curStance;
+            }
+            Scribe_Deep.Look(ref savedAim, "aim");
+            Scribe_Values.Look(ref previousStanceWasCurrent, "previousStanceWasCurrent");
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                ownedJob = pawn?.CurJob?.loadID == savedOwnedId ? pawn.CurJob : null;
+                recentOwnedAttack = pawn?.CurJob?.loadID == recentOwnedAttackId ? pawn.CurJob : null;
+                NativeBipods.Restore(pawn, savedAutomatic);
+                NativeWeaponBrace.Restore(pawn, savedBrace);
+                NativeManualAim.Restore(pawn, ownedJob, savedAim);
+                previousAttackStance = previousStanceWasCurrent ? pawn?.stances?.curStance as Stance_Busy : null;
+            }
+        }
+        int savedOwnedId = -1;
+        bool savedAutomatic = true;
+        NativeWeaponBrace.State savedBrace;
+        NativeManualAim.Snapshot savedAim;
+        bool previousStanceWasCurrent;
+
         void Move(bool firing = false, bool preserveJob = false)
         {
             preserveJob |= firing;
@@ -473,7 +591,7 @@ namespace RimFront
             {
                 if (pawn.stances.stunner.Stunned) { AnalogMovement.Halt(); return; }
                 AnalogMovement.Tick(input.yaw, forward, strafe);
-                NativeView.ApplyPose();
+                if (!NetworkControlled) NativeView.ApplyPose();
                 message = AnalogMovement.IsMoving ? "Analog movement." : NativeWeaponBrace.Status(pawn) != "" ? NativeWeaponBrace.Status(pawn) : "Analog - ready.";
                 return;
             }
@@ -559,7 +677,7 @@ namespace RimFront
                     ownedJob = started ? job : null;
                     if (deferred && requestedAttack && input != null && !requireFireRelease
                         && !pendingReload && !pendingFireMode && !pendingBrace && !pendingBipod && !Find.TickManager.Paused
-                        && !NativeTriggerPolicy.IsStaleInput((DateTime.UtcNow - acceptedAt).TotalMilliseconds)
+                        && FreshInput
                         && (CanMoveAndFire || Math.Abs(input.forward) + Math.Abs(input.strafe) < .1f)
                         && (requestedVerb?.LastShotTick ?? initialShot) <= initialShot)
                         pendingFire = true; // Retry this accepted, unfired request with fresh aim.
@@ -626,13 +744,13 @@ namespace RimFront
     internal static class PreventStaleOwnedAttackAfterReload
     {
         static void Prefix(Pawn_JobTracker __instance, Job __0, ref bool __3)
-            => RimFrontGame.Active?.BeforeNativeJobStart(__instance, __0, ref __3);
+            => RimFrontGame.For(__instance)?.BeforeNativeJobStart(__instance, __0, ref __3);
     }
 
     [HarmonyPatch(typeof(Pawn_JobTracker), "CleanupCurrentJob")]
     internal static class CancelOwnedAttackBeforeNativeCleanup
     {
-        static void Prefix(Pawn_JobTracker __instance, JobCondition __0) => RimFrontGame.Active?.BeforeNativeJobCleanup(__instance, __0);
+        static void Prefix(Pawn_JobTracker __instance, JobCondition __0) => RimFrontGame.For(__instance)?.BeforeNativeJobCleanup(__instance, __0);
     }
 
     [HarmonyPatch(typeof(Current), nameof(Current.Game), MethodType.Setter)]
@@ -641,9 +759,13 @@ namespace RimFront
         static void Prefix()
         {
             RimFrontGame.Active?.Release("Game closed or changed.");
+            RimFrontMultiplayer.CloseLocalView();
             // In-flight shots can repopulate CPU targeting caches after view release.
             // Clear those even when no pawn is currently possessed.
             NativeManualAim.Clear();
+            NativeBipods.ClearAll();
+            NativeWeaponBrace.ClearAll();
+            SimulationGeometry.Clear();
             NativeAimTargeting.Dispose();
             NativePawns.ClearAimCache();
             NativePawnAnimation.Dispose();

@@ -6,6 +6,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="EngineBoundary.cs" />
+    <Compile Include="MultiplayerBoundary.cs" />
     <Compile Include="MathBoundary.cs" />
     <Compile Include="$(RimFrontSource)/NativeAimTargeting.cs" Link="NativeAimTargeting.cs" />
     <Compile Include="$(RimFrontSource)/NativeMountains.cs" Link="NativeMountains.cs" />

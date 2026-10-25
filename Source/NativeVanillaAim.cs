@@ -249,8 +249,11 @@ namespace RimFront
             static void Postfix(Projectile __instance, Thing launcher, LocalTargetInfo usedTarget, LocalTargetInfo intendedTarget,
                 ProjectileHitFlags hitFlags, Vector3 ___origin, ref Vector3 ___destination, ref int ___ticksToImpact, ref int ___lifetime)
             {
-                if (launching == null && NativeView.Active && intendedTarget.Thing == NativeView.ControlledPawn
-                    && launcher is Pawn shooter && shooter != NativeView.ControlledPawn
+                Pawn possessedTarget = RimFrontMultiplayer.InSession
+                    ? (RimFrontGame.For(intendedTarget.Thing as Pawn) != null ? intendedTarget.Thing as Pawn : null)
+                    : NativeView.Active ? NativeView.ControlledPawn : null;
+                if (launching == null && possessedTarget != null && intendedTarget.Thing == possessedTarget
+                    && launcher is Pawn shooter && shooter != possessedTarget
                     && __instance.GetType() == typeof(Bullet) && Supports(__instance.def))
                 {
                     try
@@ -258,7 +261,7 @@ namespace RimFront
                         Vector3 incomingOrigin = ___origin;
                         incomingOrigin.y = NativeScene.GetPawnHeight(shooter) * .85f;
                         Vector3 incomingTarget = ___destination;
-                        incomingTarget.y = NativeScene.GetPawnHeight(NativeView.ControlledPawn) * .65f;
+                        incomingTarget.y = NativeScene.GetPawnHeight(possessedTarget) * .65f;
                         Shot incoming = Create(incomingOrigin, incomingTarget);
                         if (incoming != null)
                         {
@@ -277,7 +280,8 @@ namespace RimFront
                     bool directThingHit = usedTarget.HasThing && usedTarget.Thing == intendedTarget.Thing
                         && (hitFlags & ProjectileHitFlags.IntendedTarget) != 0;
                     Vector3 destination = ShotDestination(___destination, intendedTarget.Cell.ToVector3Shifted(), point, directThingHit);
-                    Vector3 origin = ___origin; origin.y = NativeView.RenderPosition.y;
+                    Vector3 origin = ___origin; origin.y = RimFrontMultiplayer.InSession
+                        ? SimulationGeometry.Eye(launcher as Pawn).y : NativeView.RenderPosition.y;
                     Vector3 visualDestination = destination; visualDestination.y = point.y;
                     Shot shot = Create(origin, visualDestination);
                     if (shot == null) return;

@@ -137,8 +137,8 @@ namespace RimFront
         static Geometry GetGeometry(Thing thing)
         {
             int id = thing.thingIDNumber, signature = Signature(thing);
-            Vector3 position = thing.DrawPos;
-            if (cache.TryGetValue(id, out Geometry found) && found.Thing == thing && found.Signature == signature
+            Vector3 position = RimFrontMultiplayer.InSession ? SimulationGeometry.Position(thing) : thing.DrawPos;
+            if (!RimFrontMultiplayer.InSession && cache.TryGetValue(id, out Geometry found) && found.Thing == thing && found.Signature == signature
                 && found.Position == position && found.Rotation == thing.Rotation)
             { found.Used = query; return found; }
             var builder = new NativeScene.Builder();
@@ -196,6 +196,8 @@ namespace RimFront
         internal static bool TrySelect(Pawn shooter, float yaw, float pitch, float maxRange, out TargetInfo result)
         {
             Vector3 eye = shooter == null ? Vector3.zero : shooter.DrawPos; eye.y = NativeView.EyeHeight;
+            if (RimFrontMultiplayer.InSession)
+                return TrySelectFrom(shooter, SimulationGeometry.Eye(shooter), yaw, pitch, maxRange, true, out result);
             if (NativeView.Active && NativeView.ControlledPawn == shooter) eye = NativeView.RenderPosition;
             int tick = Find.TickManager?.TicksGame ?? -1;
             if (samplePawn == shooter && sampleMap == shooter?.Map && sampleFrame == Time.frameCount && sampleTick == tick

@@ -45,7 +45,7 @@ try {
     Put '.gitignore'
     Put 'docs/protocol.md' 'obsolete original protocol'
     Put 'docs/runtime-session.md' 'obsolete browser session'
-    foreach ($file in @('architecture.md','compatibility.md','performance.md','smoke-tests.md','model-catalog.png','object-catalog.png','action-catalog.png')) { Put "docs/$file" }
+    foreach ($file in @('multiplayer.md','multiplayer-1.6-contracts.json','multiplayer-1.7-contracts.json','architecture.md','compatibility.md','performance.md','smoke-tests.md','model-catalog.png','object-catalog.png','action-catalog.png')) { Put "docs/$file" }
     foreach ($version in @('1.6','1.7')) {
         Put "mod/$version/Assemblies/stale.deps.json"
         Copy-Item -LiteralPath $referenceDll -Destination (Join-Path $fixture "mod/$version/Assemblies/RimFront.dll")

@@ -1,9 +1,10 @@
 using System;
+using Verse;
 
 namespace RimFront
 {
     // Produced by the in-game view and consumed on the game thread.
-    public sealed class InputCommand
+    public sealed class InputCommand : IExposable
     {
         public string action;
         public float forward;
@@ -17,6 +18,16 @@ namespace RimFront
         public bool toggleBrace;
         public bool toggleBipod;
 
+        internal InputCommand Copy() => (InputCommand)MemberwiseClone();
+        public void ExposeData()
+        {
+            Scribe_Values.Look(ref action, "action", "input");
+            Scribe_Values.Look(ref forward, "forward"); Scribe_Values.Look(ref strafe, "strafe");
+            Scribe_Values.Look(ref yaw, "yaw"); Scribe_Values.Look(ref pitch, "pitch");
+            Scribe_Values.Look(ref fire, "fire"); Scribe_Values.Look(ref crouch, "crouch");
+            Scribe_Values.Look(ref reload, "reload"); Scribe_Values.Look(ref cycleFireMode, "cycleFireMode");
+            Scribe_Values.Look(ref toggleBrace, "toggleBrace"); Scribe_Values.Look(ref toggleBipod, "toggleBipod");
+        }
         public bool IsValid()
         {
             return (action == "input" || action == "release") &&

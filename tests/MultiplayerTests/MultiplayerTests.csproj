@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><UseAppHost>false</UseAppHost>
+    <DefineConstants>$(DefineConstants);MULTIPLAYER_FIXTURE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../FiringLoopTests/EngineFixture.cs" Link="EngineFixture.cs" />
+    <Compile Include="../FiringLoopTests/StanceFixture.cs" Link="StanceFixture.cs" />
+    <Compile Include="../SerializationBoundary.cs" />
+    <Compile Include="../../Source/Gameplay.cs" Link="Production/Gameplay.cs" />
+    <Compile Include="../../Source/NativeInput.cs" Link="Production/NativeInput.cs" />
+    <Compile Include="../../Source/NativeStance.cs" Link="Production/NativeStance.cs" />
+    <Compile Include="../../Source/NativeJobPolicy.cs" Link="Production/NativeJobPolicy.cs" />
+    <Compile Include="../../Source/NativeWeaponBrace.cs" Link="Production/NativeWeaponBrace.cs" />
+    <Compile Include="../../Source/MultiplayerProtocol.cs" Link="Production/MultiplayerProtocol.cs" />
+    <Compile Include="../../Source/MultiplayerGameplay.cs" Link="Production/MultiplayerGameplay.cs" />
+  </ItemGroup>
+</Project>

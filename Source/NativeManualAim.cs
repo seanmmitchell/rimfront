@@ -28,7 +28,36 @@ namespace RimFront
             internal bool HasShotSource;
             internal bool Valid;
         }
-        static Aim current;
+        static Aim current; // Single-player context retained for native lifecycle scopes.
+        static readonly Dictionary<Pawn, Aim> aims = new Dictionary<Pawn, Aim>();
+        internal sealed class Snapshot : IExposable
+        {
+            public Snapshot() { }
+            internal bool Valid, HitThing, HitSurface;
+            internal LocalTargetInfo Target;
+            internal Vector3 Point;
+            internal float Yaw, Pitch, LastShotRange;
+            public void ExposeData()
+            {
+                Scribe_Values.Look(ref Valid, "valid"); Scribe_Values.Look(ref HitThing, "hitThing"); Scribe_Values.Look(ref HitSurface, "hitSurface");
+                Scribe_TargetInfo.Look(ref Target, "target"); Scribe_Values.Look(ref Point, "point");
+                Scribe_Values.Look(ref Yaw, "yaw"); Scribe_Values.Look(ref Pitch, "pitch"); Scribe_Values.Look(ref LastShotRange, "lastShotRange");
+            }
+        }
+        internal static Snapshot Capture(Pawn pawn)
+        {
+            if (pawn == null || !aims.TryGetValue(pawn, out var aim)) return null;
+            return new Snapshot { Valid = aim.Valid, HitThing = aim.Target.HitThing, HitSurface = aim.Target.HitSurface,
+                Target = aim.Target.Target, Point = aim.Target.Point, Yaw = aim.Yaw, Pitch = aim.Pitch, LastShotRange = aim.LastShotRange };
+        }
+        internal static void Restore(Pawn pawn, Job job, Snapshot saved)
+        {
+            if (pawn == null || job?.verbToUse == null || saved == null) return;
+            aims[pawn] = new Aim { Pawn = pawn, Job = job, Verb = job.verbToUse, Valid = saved.Valid,
+                Yaw = saved.Yaw, Pitch = saved.Pitch, LastShotRange = saved.LastShotRange,
+                Target = new NativeAimTargeting.TargetInfo { Target = saved.Target, Point = saved.Point,
+                    HitThing = saved.HitThing, HitSurface = saved.HitSurface } };
+        }
         static bool validating, initialized, supported, collisionWarned;
         static string failure;
         static readonly FieldInfo VerbTarget = AccessTools.Field(typeof(Verb), "currentTarget");
@@ -50,6 +79,7 @@ namespace RimFront
             reason = failure;
             if (!supported) return false;
             current = new Aim { Pawn = pawn, Verb = verb, Job = job, Target = target, Yaw = yaw, Pitch = pitch, Valid = true };
+            if (RimFrontMultiplayer.InSession) aims[pawn] = current;
             validating = true;
             try
             {
@@ -61,9 +91,10 @@ namespace RimFront
         }
         internal static void Update(Pawn pawn, float yaw, float pitch)
         {
-            Aim aim = current;
+            if (pawn == null) return;
+            Aim aim = RimFrontMultiplayer.InSession ? (aims.TryGetValue(pawn, out var found) ? found : null) : current;
             if (aim == null || aim.Pawn != pawn) return;
-            if (pawn.CurJob != aim.Job || !NativeView.Active || NativeView.ControlledPawn != pawn)
+            if (pawn.CurJob != aim.Job || (RimFrontMultiplayer.InSession ? RimFrontGame.For(pawn) == null : !NativeView.Active || NativeView.ControlledPawn != pawn))
             { Clear(pawn); return; }
             aim.Yaw = yaw; aim.Pitch = pitch;
             aim.Valid = NativeAimTargeting.TrySelect(pawn, yaw, pitch, SelectionRange(aim.Verb), out NativeAimTargeting.TargetInfo target);
@@ -78,6 +109,7 @@ namespace RimFront
         }
         internal static void Clear(Pawn pawn = null)
         {
+            if (pawn == null) aims.Clear(); else aims.Remove(pawn);
             if (pawn == null || current?.Pawn == pawn) current = null;
         }
         internal static float SelectionRange(Verb verb) => Math.Min(NativeScene.ViewDistance, Math.Max(.1f, verb.EffectiveRange - .1f));
@@ -88,6 +120,13 @@ namespace RimFront
                 && (validation || ReferenceEquals(expectedJob, job));
         static bool Matches(Verb verb)
         {
+            if (RimFrontMultiplayer.InSession)
+            {
+                Pawn caster = verb?.CasterPawn;
+                if (caster == null || !aims.TryGetValue(caster, out var entry) || entry.Verb != verb) return false;
+                current = entry;
+                return RimFrontGame.For(caster) != null && (validating || caster.CurJob == entry.Job);
+            }
             Aim aim = current;
             return aim != null && Owns(aim.Pawn, aim.Verb, aim.Job, NativeView.ControlledPawn, verb,
                 aim.Pawn?.CurJob, NativeView.Active, validating);
@@ -101,7 +140,8 @@ namespace RimFront
         internal static bool TryGet(Pawn pawn, out Vector3 point, out float yaw, out float pitch)
         {
             point = Vector3.zero; yaw = pitch = 0;
-            return current != null && current.Pawn == pawn && TryGet(current.Verb, out point, out yaw, out pitch);
+            Aim aim = RimFrontMultiplayer.InSession && pawn != null ? (aims.TryGetValue(pawn, out var found) ? found : null) : current;
+            return aim != null && aim.Pawn == pawn && TryGet(aim.Verb, out point, out yaw, out pitch);
         }
         internal static bool TryGetTarget(Verb verb, out LocalTargetInfo target)
         {
@@ -324,6 +364,7 @@ namespace RimFront
         }
         static Exception CeEndCast(Verb __instance, CastState __state, Exception __exception)
         {
+            if (RimFrontMultiplayer.InSession) Matches(__instance);
             // A native reload/job replacement can reset the verb inside this scope.
             // Never resurrect its previous target after that ownership was cleared.
             if (__state != null && ReferenceEquals(current, __state.Context))
@@ -528,7 +569,7 @@ namespace RimFront
                             contacts.Add(new RenderContact { Thing = thing, Distance = distance });
                     }
                     else contacts.Add(new RenderContact { Thing = thing,
-                        Distance = (thing.DrawPos - (Vector3)ceLastPosition.GetValue(projectile)).magnitude });
+                        Distance = (SimulationGeometry.Position(thing) - (Vector3)ceLastPosition.GetValue(projectile)).magnitude });
                 }
                 foreach (Thing thing in candidates) Add(thing);
                 Thing intended = ((LocalTargetInfo)ceIntended.GetValue(projectile)).Thing;
@@ -549,7 +590,7 @@ namespace RimFront
                             if (thing != projectile && Rendered(thing) && !seen.Contains(thing)) { extra++; Add(thing); }
                         }
                     }
-                contacts.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+                contacts.Sort((a, b) => { int order = a.Distance.CompareTo(b.Distance); return order != 0 ? order : a.Thing.thingIDNumber.CompareTo(b.Thing.thingIDNumber); });
                 candidates.Clear();
                 foreach (RenderContact contact in contacts) candidates.Add(contact.Thing);
             }
